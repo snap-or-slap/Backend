@@ -2,8 +2,8 @@
 	"openapi": "3.0.3",
 	"info": {
 		"title": "SOS App — Backend API",
-		"version": "0.6.0",
-		"description": "Snap or Slap challenge app. Sprint 5: Active Challenge & Check-in System (submit checkin, today status, gallery, stats, nudge). All endpoints return JSON. No auth — use ?user_id=UUID.\n\nTest accounts: alice@example.com / bob@example.com / charlie@example.com / diana@example.com / edward@example.com (password: Password123!)"
+		"version": "0.7.0",
+		"description": "Snap or Slap challenge app. Sprint 6: Cron Jobs & Automated Game Logic (formation transition, heart deduction, completion snapshot, cancel challenge). All endpoints return JSON. No auth — use ?user_id=UUID.\n\nTest accounts: alice@example.com / bob@example.com / charlie@example.com / diana@example.com / edward@example.com (password: Password123!)"
 	},
 	"servers": [
 		{
@@ -2063,6 +2063,193 @@
 					}
 				}
 			}
+		},
+		"/api/crons/{jobName}": {
+			"get": {
+				"tags": [
+					"Cron Jobs"
+				],
+				"summary": "Get cron job info",
+				"description": "Browser-testable endpoint that returns info about a cron job without executing it. No auth needed.",
+				"parameters": [
+					{
+						"name": "jobName",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"formation-transition",
+								"heart-deduction"
+							]
+						},
+						"description": "Name of the cron job"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Job info returned",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CronJobInfo"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Unknown job name"
+					}
+				}
+			},
+			"post": {
+				"tags": [
+					"Cron Jobs"
+				],
+				"summary": "Execute cron job",
+				"description": "Execute a cron job. Requires Authorization: Bearer <CRON_SECRET> header. Jobs: formation-transition (transitions formation challenges to active/cancelled), heart-deduction (processes daily heart deductions for active challenges).",
+				"parameters": [
+					{
+						"name": "jobName",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"formation-transition",
+								"heart-deduction"
+							]
+						}
+					},
+					{
+						"name": "Authorization",
+						"in": "header",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"example": "Bearer your-cron-secret"
+						},
+						"description": "Bearer token with CRON_SECRET value"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Job executed successfully",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CronJobResult"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid CRON_SECRET"
+					},
+					"404": {
+						"description": "Unknown job name"
+					},
+					"500": {
+						"description": "Job execution failed"
+					}
+				}
+			}
+		},
+		"/api/challenges/{id}/cancel": {
+			"get": {
+				"tags": [
+					"Challenge Cancel"
+				],
+				"summary": "Get challenge cancel status",
+				"description": "Browser-testable endpoint that returns challenge status/cancel info including final_stats if available.",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Challenge cancel status info",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ChallengeCancelInfo"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Challenge not found"
+					}
+				}
+			},
+			"post": {
+				"tags": [
+					"Challenge Cancel"
+				],
+				"summary": "Cancel an active challenge",
+				"description": "Host cancels an active challenge. Creates a completion snapshot and notifies all members. Only the challenge host (creator) can cancel.",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
+					},
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "The host's user ID"
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"reason": {
+										"type": "string",
+										"example": "personal reasons"
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Challenge cancelled successfully",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ChallengeCancelResult"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Not the host or challenge not found"
+					},
+					"409": {
+						"description": "Challenge is not active"
+					}
+				}
+			}
 		}
 	},
 	"components": {
@@ -2493,6 +2680,147 @@
 					"completion_rate": {
 						"type": "number",
 						"example": 85.7
+					}
+				}
+			},
+			"CronJobInfo": {
+				"type": "object",
+				"properties": {
+					"job": {
+						"type": "string",
+						"example": "formation-transition"
+					},
+					"description": {
+						"type": "string"
+					},
+					"method": {
+						"type": "string",
+						"example": "POST with Authorization: Bearer <CRON_SECRET> to execute"
+					},
+					"available_jobs": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					}
+				}
+			},
+			"CronJobResult": {
+				"type": "object",
+				"properties": {
+					"job": {
+						"type": "string",
+						"example": "formation-transition"
+					},
+					"status": {
+						"type": "string",
+						"enum": [
+							"completed",
+							"failed"
+						]
+					},
+					"duration_ms": {
+						"type": "integer"
+					},
+					"executed_at": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"result": {
+						"type": "object",
+						"description": "Job-specific result data. For formation-transition: { activated: string[], cancelled: string[] }. For heart-deduction: { processed: [...], skipped: number }."
+					}
+				}
+			},
+			"ChallengeCancelInfo": {
+				"type": "object",
+				"properties": {
+					"challenge_id": {
+						"type": "string",
+						"format": "uuid"
+					},
+					"title": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string"
+					},
+					"end_reason": {
+						"type": "string",
+						"nullable": true
+					},
+					"final_stats": {
+						"type": "object",
+						"nullable": true
+					},
+					"updated_at": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"can_cancel": {
+						"type": "boolean"
+					}
+				}
+			},
+			"ChallengeCancelResult": {
+				"type": "object",
+				"properties": {
+					"challenge_id": {
+						"type": "string",
+						"format": "uuid"
+					},
+					"status": {
+						"type": "string",
+						"example": "cancelled"
+					},
+					"end_reason": {
+						"type": "string",
+						"example": "host_cancelled"
+					},
+					"final_stats": {
+						"type": "object",
+						"description": "Completion snapshot with member_stats, total_checkins, top_performer_id, hearts_remaining, actual_steps_completed, danger_zones",
+						"properties": {
+							"total_checkins": {
+								"type": "integer"
+							},
+							"member_stats": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"properties": {
+										"user_id": {
+											"type": "string"
+										},
+										"username": {
+											"type": "string"
+										},
+										"checkin_count": {
+											"type": "integer"
+										},
+										"completion_rate": {
+											"type": "number"
+										}
+									}
+								}
+							},
+							"top_performer_id": {
+								"type": "string",
+								"nullable": true
+							},
+							"hearts_remaining": {
+								"type": "integer"
+							},
+							"actual_steps_completed": {
+								"type": "integer"
+							},
+							"danger_zones": {
+								"type": "array",
+								"items": {
+									"type": "integer"
+								}
+							}
+						}
 					}
 				}
 			}
