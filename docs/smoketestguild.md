@@ -554,13 +554,85 @@ curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/challenges/f
 
 ---
 
+## Sprint 5 — Active Challenge & Check-in System
+
+### 56a. Today's Check-in Status (GET — browser-friendly)
+
+```bash
+# View all members' check-in status for current cycle
+curl -s "https://backend-production-2ba1.up.railway.app/api/challenges/f79aacef-8b1e-469d-b99c-afcba004f02a/checkins/today"
+# ✅ 200 { "challenge_id": "f79aacef-...", "cycle_number": 4, "duration_days": 30, "hearts_left": 3, "reset_at": "...", "time_until_reset": 60602, "members": [{ "username": "alice", "status": "checked_in" }, { "username": "bob_the_builder", "status": "pending" }] }
+```
+
+### 56b. Check-in Gallery (GET — browser-friendly)
+
+```bash
+# Browse all check-ins with pagination
+curl -s "https://backend-production-2ba1.up.railway.app/api/challenges/f79aacef-8b1e-469d-b99c-afcba004f02a/checkins?page=1&limit=5"
+# ✅ 200 { "checkins": [{ "username": "bob_the_builder", "cycle_number": 2, "caption": "Day 2..." }, ...], "total": 5, "page": 1, "limit": 5 }
+
+# Filter by member
+curl -s "https://backend-production-2ba1.up.railway.app/api/challenges/f79aacef-8b1e-469d-b99c-afcba004f02a/checkins?member_id=9065e038-3ebf-411f-af59-d64e12259533"
+# ✅ 200 — Only alice's check-ins
+```
+
+### 56c. Challenge Statistics (GET — browser-friendly)
+
+```bash
+# View completion rates, top performer, per-member breakdown
+curl -s "https://backend-production-2ba1.up.railway.app/api/challenges/f79aacef-8b1e-469d-b99c-afcba004f02a/stats"
+# ✅ 200 { "challenge_id": "f79aacef-...", "status": "active", "elapsed_cycles": 4, "completion_rate": 62.5, "top_performer": { "username": "alice", "completion_rate": 75 }, "member_stats": [...] }
+
+# Formation challenge → 409
+curl -s "https://backend-production-2ba1.up.railway.app/api/challenges/16eda1da-1b3e-4753-88f3-e41cd4e8f42a/stats"
+# ✅ 409 { "error": "Challenge is not active or completed" }
+```
+
+### 56d. Submit Check-in (POST)
+
+```bash
+# Alice checks in for current cycle
+curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/challenges/f79aacef-8b1e-469d-b99c-afcba004f02a/checkins?user_id=9065e038-3ebf-411f-af59-d64e12259533" \
+  -H "Content-Type: application/json" \
+  -d '{"caption":"Day 4 smoke test!"}'
+# ✅ 201 { "checkin": { "cycle_number": 4, "caption": "Day 4 smoke test!" }, "total_checkins": 4, "squad_status": { "members_checked_in": 1, "members_total": 2 } }
+
+# Duplicate check-in → 409
+curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/challenges/f79aacef-8b1e-469d-b99c-afcba004f02a/checkins?user_id=9065e038-3ebf-411f-af59-d64e12259533" \
+  -H "Content-Type: application/json" \
+  -d '{"caption":"try again"}'
+# ✅ 409 { "error": "Already checked in for cycle 4" }
+```
+
+### 56e. Nudge Member (POST)
+
+```bash
+# Alice nudges bob (who hasn't checked in yet)
+curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/challenges/f79aacef-8b1e-469d-b99c-afcba004f02a/nudge/e30d4258-a336-4dcb-9534-7c753e765db7?user_id=9065e038-3ebf-411f-af59-d64e12259533"
+# ✅ 200 { "message": "Nudge sent successfully", "target_user_id": "e30d4258-..." }
+
+# Nudge again → rate limited
+curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/challenges/f79aacef-8b1e-469d-b99c-afcba004f02a/nudge/e30d4258-a336-4dcb-9534-7c753e765db7?user_id=9065e038-3ebf-411f-af59-d64e12259533"
+# ✅ 429 { "error": "Already nudged this member today" }
+```
+
+### 56f. Nudge History (GET — browser-friendly)
+
+```bash
+# View nudges bob received in this challenge
+curl -s "https://backend-production-2ba1.up.railway.app/api/challenges/f79aacef-8b1e-469d-b99c-afcba004f02a/nudge/e30d4258-a336-4dcb-9534-7c753e765db7"
+# ✅ 200 { "nudges": [{ "metadata": { "from_user_id": "9065e038-..." }, "is_read": false }], "member_id": "e30d4258-...", "challenge_id": "f79aacef-..." }
+```
+
+---
+
 ## API Documentation
 
 ### 56. OpenAPI JSON
 
 ```bash
 curl -s "https://backend-production-2ba1.up.railway.app/api/docs" | head -c 200
-# ✅ 200 — Returns full OpenAPI 3.0.3 spec (v0.5.0) with Challenge Formation endpoints
+# ✅ 200 — Returns full OpenAPI 3.0.3 spec (v0.6.0) with Check-in endpoints
 ```
 
 ### 57. Swagger UI
@@ -576,8 +648,8 @@ curl -s -o /dev/null -w "%{http_code}" "https://backend-production-2ba1.up.railw
 ## Test Results
 
 ```
-Test Suites: 9 passed, 9 total
-Tests:       124 passed, 2 skipped, 126 total
+Test Suites: 10 passed, 10 total
+Tests:       143 passed, 2 skipped, 145 total
 
   src/__tests__/lib/config.test.ts               ✅ Environment validation
   src/__tests__/lib/db.test.ts                   ✅ Database connection
@@ -588,6 +660,7 @@ Tests:       124 passed, 2 skipped, 126 total
   src/__tests__/api/friends.test.ts              ✅ Friends CRUD + Privacy
   src/__tests__/api/challenges.test.ts           ✅ Challenges CRUD (18 tests)
   src/__tests__/api/challenges-formation.test.ts ✅ Formation lifecycle (27 tests)
+  src/__tests__/api/challenges-checkin.test.ts   ✅ Check-in system (19 tests)
 ```
 
 ---
@@ -642,4 +715,17 @@ curl -s "$BASE/api/challenges/16eda1da-1b3e-4753-88f3-e41cd4e8f42a/ready"
 
 echo "\n=== Pending invitations ==="
 curl -s "$BASE/api/challenges/16eda1da-1b3e-4753-88f3-e41cd4e8f42a/join"
+
+CH="f79aacef-8b1e-469d-b99c-afcba004f02a"
+echo "\n=== Today status ==="
+curl -s "$BASE/api/challenges/$CH/checkins/today"
+
+echo "\n=== Gallery ==="
+curl -s "$BASE/api/challenges/$CH/checkins?page=1&limit=5"
+
+echo "\n=== Stats ==="
+curl -s "$BASE/api/challenges/$CH/stats"
+
+echo "\n=== Nudge history ==="
+curl -s "$BASE/api/challenges/$CH/nudge/$BOB"
 ```
