@@ -8,7 +8,7 @@ export const registerSchema = z.object({
 		.min(4, 'Username must be 4-20 characters')
 		.max(20, 'Username must be 4-20 characters')
 		.regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores'),
-	terms_agreed: z.literal(true, { errorMap: () => ({ message: 'You must agree to the terms' }) }),
+	terms_agreed: z.literal(true, { error: 'You must agree to the terms' }),
 }).strip();
 
 export const loginSchema = z.object({
