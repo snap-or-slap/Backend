@@ -404,18 +404,166 @@ curl -s -X DELETE "https://backend-production-2ba1.up.railway.app/api/challenges
 
 ---
 
+## Sprint 4 — Challenge Formation Lifecycle
+
+### 41. Browse Public Challenges (GET — browser-friendly)
+
+```bash
+# No params — lists all public formation challenges not full
+curl -s "https://backend-production-2ba1.up.railway.app/api/challenges/public"
+# ✅ 200 { "challenges": [{ "title": "Read 20 Pages Daily", "status": "formation", "member_count": 2, ... }], "total": 1, "page": 1 }
+```
+
+### 42. Search Public Challenges
+
+```bash
+curl -s "https://backend-production-2ba1.up.railway.app/api/challenges/public?q=read"
+# ✅ 200 { "challenges": [{ "title": "Read 20 Pages Daily", ... }], "total": 1 }
+
+# No results
+curl -s "https://backend-production-2ba1.up.railway.app/api/challenges/public?q=zzzzz"
+# ✅ 200 { "challenges": [], "total": 0 }
+```
+
+### 43. Public Challenges — Exclude My Memberships
+
+```bash
+# bob is already in "Read 20 Pages Daily" → excluded
+curl -s "https://backend-production-2ba1.up.railway.app/api/challenges/public?user_id=e30d4258-a336-4dcb-9534-7c753e765db7"
+# ✅ 200 { "challenges": [], "total": 0 }
+
+# edward is not in any formation challenge → sees it
+curl -s "https://backend-production-2ba1.up.railway.app/api/challenges/public?user_id=dab2e64b-08eb-4c6d-a12e-5f6cb0d224c2"
+# ✅ 200 { "challenges": [{ "title": "Read 20 Pages Daily", ... }], "total": 1 }
+```
+
+### 44. View Readiness Status (GET — browser-friendly)
+
+```bash
+curl -s "https://backend-production-2ba1.up.railway.app/api/challenges/16eda1da-1b3e-4753-88f3-e41cd4e8f42a/ready"
+# ✅ 200 { "challenge_id": "...", "members": [{ "username": "bob_the_builder", "is_ready": true, "role": "host" }], "readiness": { "total": 1, "ready": 1, "all_ready": false } }
+```
+
+### 45. View Pending Invitations (GET — browser-friendly)
+
+```bash
+curl -s "https://backend-production-2ba1.up.railway.app/api/challenges/16eda1da-1b3e-4753-88f3-e41cd4e8f42a/join"
+# ✅ 200 { "challenge_id": "...", "pending_invitations": [{ "username": "alice", "status": "invited", ... }], "count": 1 }
+```
+
+### 46. Create Challenge with Invite Friends
+
+```bash
+# alice creates a challenge and invites bob (they are friends)
+curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/challenges?user_id=9065e038-3ebf-411f-af59-d64e12259533" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Sprint Test Challenge",
+    "durationDays": 7,
+    "frequency": "daily",
+    "invitedUserIds": ["e30d4258-a336-4dcb-9534-7c753e765db7"]
+  }'
+# ✅ 201 { "challenge": { "id": "<new-uuid>", "title": "Sprint Test Challenge", ... } }
+# → bob gets invited automatically
+```
+
+### 47. Create Challenge with Invite — Non-Friend (Rejected)
+
+```bash
+# alice tries to invite diana (pending request, not accepted friend)
+curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/challenges?user_id=9065e038-3ebf-411f-af59-d64e12259533" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Fail Test",
+    "durationDays": 7,
+    "frequency": "daily",
+    "invitedUserIds": ["bf0ab3b2-9802-4c2d-9d7e-b41484521cf7"]
+  }'
+# ✅ 400 { "error": "Can only invite friends", "nonFriendIds": ["bf0ab3b2-..."] }
+```
+
+### 48. Invite Friends to Existing Challenge (POST)
+
+```bash
+# bob invites charlie to his formation challenge
+curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/challenges/16eda1da-1b3e-4753-88f3-e41cd4e8f42a/invite?user_id=e30d4258-a336-4dcb-9534-7c753e765db7" \
+  -H "Content-Type: application/json" \
+  -d '{"userIds": ["b2e8239e-edb6-4a92-9482-9df5afc1e0ec"]}'
+# ✅ 201 { "invited": [{ "user_id": "b2e8239e-...", "status": "invited", ... }], "skipped": [] }
+```
+
+### 49. Invite — Not Host (Forbidden)
+
+```bash
+# alice tries to invite to bob's challenge
+curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/challenges/16eda1da-1b3e-4753-88f3-e41cd4e8f42a/invite?user_id=9065e038-3ebf-411f-af59-d64e12259533" \
+  -H "Content-Type: application/json" \
+  -d '{"userIds": ["b2e8239e-edb6-4a92-9482-9df5afc1e0ec"]}'
+# ✅ 403 { "error": "Only the host can invite" }
+```
+
+### 50. Accept Invitation — Join (POST)
+
+```bash
+# alice accepts invitation to bob's challenge (she was invited in seed data)
+curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/challenges/16eda1da-1b3e-4753-88f3-e41cd4e8f42a/join?user_id=9065e038-3ebf-411f-af59-d64e12259533"
+# ✅ 200 { "member": { "user_id": "9065e038-...", "status": "accepted", ... } }
+```
+
+### 51. Decline Invitation (POST)
+
+```bash
+# User declines an invitation (must be invited status)
+curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/challenges/<CHALLENGE_ID>/decline?user_id=<INVITED_USER_ID>"
+# ✅ 200 { "member": { "status": "declined", ... } }
+```
+
+### 52. Toggle Ready Status (PUT)
+
+```bash
+# alice sets ready on bob's formation challenge (must be accepted member first)
+curl -s -X PUT "https://backend-production-2ba1.up.railway.app/api/challenges/16eda1da-1b3e-4753-88f3-e41cd4e8f42a/ready?user_id=9065e038-3ebf-411f-af59-d64e12259533" \
+  -H "Content-Type: application/json" \
+  -d '{"isReady": true}'
+# ✅ 200 { "is_ready": true, "readiness": { "total": 2, "ready": 2, "all_ready": true } }
+```
+
+### 53. Leave Challenge (POST)
+
+```bash
+# alice leaves bob's formation challenge (not the host, so allowed)
+curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/challenges/16eda1da-1b3e-4753-88f3-e41cd4e8f42a/leave?user_id=9065e038-3ebf-411f-af59-d64e12259533"
+# ✅ 200 { "message": "Left challenge successfully", "challenge_id": "16eda1da-..." }
+```
+
+### 54. Leave Challenge — Host (Rejected)
+
+```bash
+# bob tries to leave his own challenge (he's the host)
+curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/challenges/16eda1da-1b3e-4753-88f3-e41cd4e8f42a/leave?user_id=e30d4258-a336-4dcb-9534-7c753e765db7"
+# ✅ 400 { "error": "Host cannot leave. Cancel the challenge instead." }
+```
+
+### 55. Leave Challenge — Active (Rejected)
+
+```bash
+# bob tries to leave alice's active challenge
+curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/challenges/f79aacef-8b1e-469d-b99c-afcba004f02a/leave?user_id=e30d4258-a336-4dcb-9534-7c753e765db7"
+# ✅ 400 { "error": "Cannot leave an active challenge" }
+```
+
+---
+
 ## API Documentation
 
-### 39. OpenAPI JSON
+### 56. OpenAPI JSON
 
 ```bash
 curl -s "https://backend-production-2ba1.up.railway.app/api/docs" | head -c 200
-# ✅ 200 — Returns full OpenAPI 3.0.3 spec (v0.4.0) with 7 DTO schemas:
-#    CreateChallengeDto, UpdateChallengeDto, Challenge, ChallengeSummary,
-#    ChallengeMember, Error, ValidationError
+# ✅ 200 — Returns full OpenAPI 3.0.3 spec (v0.5.0) with Challenge Formation endpoints
 ```
 
-### 40. Swagger UI
+### 57. Swagger UI
 
 ```bash
 curl -s -o /dev/null -w "%{http_code}" "https://backend-production-2ba1.up.railway.app/api/docs/ui"
@@ -428,17 +576,18 @@ curl -s -o /dev/null -w "%{http_code}" "https://backend-production-2ba1.up.railw
 ## Test Results
 
 ```
-Test Suites: 8 passed, 8 total
-Tests:       99 passed, 99 total
+Test Suites: 9 passed, 9 total
+Tests:       124 passed, 2 skipped, 126 total
 
-  src/__tests__/lib/config.test.ts      ✅ Environment validation
-  src/__tests__/lib/db.test.ts          ✅ Database connection
-  src/__tests__/lib/schemas.test.ts     ✅ Zod schemas
-  src/__tests__/lib/middleware.test.ts   ✅ Auth middleware + error handler
-  src/__tests__/api/health.test.ts      ✅ Health endpoint
-  src/__tests__/api/auth.test.ts        ✅ Register + Login + Refresh + Signout
-  src/__tests__/api/friends.test.ts     ✅ Friends CRUD + Privacy
-  src/__tests__/api/challenges.test.ts  ✅ Challenges CRUD (18 tests)
+  src/__tests__/lib/config.test.ts               ✅ Environment validation
+  src/__tests__/lib/db.test.ts                   ✅ Database connection
+  src/__tests__/lib/schemas.test.ts              ✅ Zod schemas
+  src/__tests__/lib/middleware.test.ts            ✅ Auth middleware + error handler
+  src/__tests__/api/health.test.ts               ✅ Health endpoint
+  src/__tests__/api/auth.test.ts                 ✅ Register + Login + Refresh + Signout
+  src/__tests__/api/friends.test.ts              ✅ Friends CRUD + Privacy
+  src/__tests__/api/challenges.test.ts           ✅ Challenges CRUD (18 tests)
+  src/__tests__/api/challenges-formation.test.ts ✅ Formation lifecycle (27 tests)
 ```
 
 ---
@@ -481,4 +630,16 @@ echo "\n=== Docs ==="
 curl -s -o /dev/null -w "OpenAPI: %{http_code}" "$BASE/api/docs"
 echo ""
 curl -s -o /dev/null -w "Swagger UI: %{http_code}" "$BASE/api/docs/ui"
+
+echo "\n=== Public challenges ==="
+curl -s "$BASE/api/challenges/public"
+
+echo "\n=== Public search ==="
+curl -s "$BASE/api/challenges/public?q=read"
+
+echo "\n=== Readiness status ==="
+curl -s "$BASE/api/challenges/16eda1da-1b3e-4753-88f3-e41cd4e8f42a/ready"
+
+echo "\n=== Pending invitations ==="
+curl -s "$BASE/api/challenges/16eda1da-1b3e-4753-88f3-e41cd4e8f42a/join"
 ```
