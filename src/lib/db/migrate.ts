@@ -10,9 +10,11 @@ async function migrate() {
 		process.exit(1);
 	}
 
+	const isInternalConnection = databaseUrl.includes('.railway.internal');
+
 	const pool = new Pool({
 		connectionString: databaseUrl,
-		ssl: { rejectUnauthorized: false },
+		ssl: isInternalConnection ? false : { rejectUnauthorized: false },
 	});
 
 	try {
