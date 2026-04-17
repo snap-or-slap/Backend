@@ -610,6 +610,121 @@ curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/challenges/f
 # Alice nudges bob (who hasn't checked in yet)
 curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/challenges/f79aacef-8b1e-469d-b99c-afcba004f02a/nudge/e30d4258-a336-4dcb-9534-7c753e765db7?user_id=9065e038-3ebf-411f-af59-d64e12259533"
 # ✅ 200 { "message": "Nudge sent successfully", "target_user_id": "e30d4258-..." }
+```
+
+---
+
+## Sprint 7 — Profile & Gamification
+
+### 57a. Full Profile (GET)
+
+```bash
+# Get alice's full profile (user + stats + badges + activities)
+curl -s "https://backend-production-2ba1.up.railway.app/api/users/me/profile?user_id=9065e038-3ebf-411f-af59-d64e12259533"
+# ✅ 200 { user: {...}, stats: {...}, badges: [...], badges_locked: [...], recent_activities: [...] }
+```
+
+### 57b. User Stats (GET)
+
+```bash
+# Get alice's stats (lightweight)
+curl -s "https://backend-production-2ba1.up.railway.app/api/users/me/stats?user_id=9065e038-3ebf-411f-af59-d64e12259533"
+# ✅ 200 { stats: { user_id, challenges_joined, challenges_completed, total_checkins, current_streak, best_streak, updated_at } }
+```
+
+### 57c. Recalculate Stats (POST)
+
+```bash
+# Recalculate alice's stats from DB data
+curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/users/me/stats/recalculate?user_id=9065e038-3ebf-411f-af59-d64e12259533"
+# ✅ 200 { stats: { challenges_joined: 2, challenges_completed: 1, total_checkins: 11, current_streak: 10, best_streak: 10 }, message: "Stats recalculated successfully" }
+```
+
+### 57d. Activity Feed (GET)
+
+```bash
+# Get alice's activity feed (paginated)
+curl -s "https://backend-production-2ba1.up.railway.app/api/users/me/activities?user_id=9065e038-3ebf-411f-af59-d64e12259533"
+# ✅ 200 { activities: [...], pagination: { page: 1, limit: 20, total: 4, total_pages: 1 } }
+
+# With type filter
+curl -s "https://backend-production-2ba1.up.railway.app/api/users/me/activities?user_id=9065e038-3ebf-411f-af59-d64e12259533&type=badge_earned"
+# ✅ 200 { activities: [{ type: "badge_earned", ... }], pagination: {...} }
+
+# With pagination
+curl -s "https://backend-production-2ba1.up.railway.app/api/users/me/activities?user_id=9065e038-3ebf-411f-af59-d64e12259533&page=1&limit=2"
+# ✅ 200 { activities: [...2 items...], pagination: { page: 1, limit: 2, total: 4, total_pages: 2 } }
+```
+
+### 57e. Check & Award Badges (POST)
+
+```bash
+# Auto-check and award badges for alice based on her stats
+curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/users/me/badges/check?user_id=9065e038-3ebf-411f-af59-d64e12259533"
+# ✅ 200 { awarded: ["early-adopter", "first-checkin", "streak-7", "challenge-1", "squad-mvp"], message: "Awarded 5 new badge(s): ..." }
+# Run again → ✅ 200 { awarded: [], message: "No new badges earned" }
+```
+
+### 57f. Toggle Privacy (PUT)
+
+```bash
+# Set alice's profile to private
+curl -s -X PUT "https://backend-production-2ba1.up.railway.app/api/users/me/settings?user_id=9065e038-3ebf-411f-af59-d64e12259533" \
+  -H "Content-Type: application/json" \
+  -d '{"isPrivate": true}'
+# ✅ 200 { user: { id: "...", is_private: true }, message: "Settings updated" }
+
+# Set back to public
+curl -s -X PUT "https://backend-production-2ba1.up.railway.app/api/users/me/settings?user_id=9065e038-3ebf-411f-af59-d64e12259533" \
+  -H "Content-Type: application/json" \
+  -d '{"isPrivate": false}'
+# ✅ 200 { user: { id: "...", is_private: false }, message: "Settings updated" }
+```
+
+### 57g. Change Password (POST)
+
+```bash
+# Change alice's password
+curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/auth/change-password?user_id=9065e038-3ebf-411f-af59-d64e12259533" \
+  -H "Content-Type: application/json" \
+  -d '{"currentPassword": "Password123!", "newPassword": "NewPassword123!"}'
+# ✅ 200 { message: "Password changed successfully" }
+
+# Change back (so test account still works)
+curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/auth/change-password?user_id=9065e038-3ebf-411f-af59-d64e12259533" \
+  -H "Content-Type: application/json" \
+  -d '{"currentPassword": "NewPassword123!", "newPassword": "Password123!"}'
+# ✅ 200 { message: "Password changed successfully" }
+
+# Wrong current password → 401
+curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/auth/change-password?user_id=9065e038-3ebf-411f-af59-d64e12259533" \
+  -H "Content-Type: application/json" \
+  -d '{"currentPassword": "WrongPass1!", "newPassword": "Something123!"}'
+# ✅ 401 { error: "Current password is incorrect" }
+```
+
+### 57h. Delete Account (DELETE)
+
+```bash
+# Soft delete edward's account (anonymizes data, deactivates user)
+curl -s -X DELETE "https://backend-production-2ba1.up.railway.app/api/users/me?user_id=dab2e64b-08eb-4c6d-a12e-5f6cb0d224c2"
+# ✅ 200 { message: "Account deleted successfully" }
+
+# Try to get deleted user's profile → 404
+curl -s "https://backend-production-2ba1.up.railway.app/api/users/me/profile?user_id=dab2e64b-08eb-4c6d-a12e-5f6cb0d224c2"
+# ✅ 404 { error: "User not found or deactivated" }
+```
+
+### 57i. OpenAPI Docs (GET)
+
+```bash
+# Swagger JSON (v0.8.0 with Sprint 7 endpoints)
+curl -s "https://backend-production-2ba1.up.railway.app/api/docs" | python -m json.tool | head -5
+# ✅ 200 { "openapi": "3.0.3", "info": { "title": "SOS App...", "version": "0.8.0" } }
+
+# Swagger UI
+# Open in browser: https://backend-production-2ba1.up.railway.app/api/docs/ui
+```
 
 # Nudge again → rate limited
 curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/challenges/f79aacef-8b1e-469d-b99c-afcba004f02a/nudge/e30d4258-a336-4dcb-9534-7c753e765db7?user_id=9065e038-3ebf-411f-af59-d64e12259533"
