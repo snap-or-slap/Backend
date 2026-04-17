@@ -2,8 +2,8 @@
 	"openapi": "3.0.3",
 	"info": {
 		"title": "SOS App — Backend API",
-		"version": "0.5.0",
-		"description": "Snap or Slap challenge app. Sprint 4+: Challenge Formation Lifecycle (invite, join, decline, ready, leave, public search). All endpoints return JSON. No auth — use ?user_id=UUID.\n\nTest accounts: alice@example.com / bob@example.com / charlie@example.com / diana@example.com / edward@example.com (password: Password123!)"
+		"version": "0.6.0",
+		"description": "Snap or Slap challenge app. Sprint 5: Active Challenge & Check-in System (submit checkin, today status, gallery, stats, nudge). All endpoints return JSON. No auth — use ?user_id=UUID.\n\nTest accounts: alice@example.com / bob@example.com / charlie@example.com / diana@example.com / edward@example.com (password: Password123!)"
 	},
 	"servers": [
 		{
@@ -1177,13 +1177,33 @@
 		},
 		"/api/challenges/{id}/invite": {
 			"post": {
-				"tags": ["Challenge Formation"],
+				"tags": [
+					"Challenge Formation"
+				],
 				"summary": "Invite friends to challenge",
 				"operationId": "inviteToChallenge",
 				"description": "Host invites friends to a formation challenge. Only the host can invite. Invitees must be friends. Skips users already in the challenge.",
 				"parameters": [
-					{"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}, "description": "Challenge ID"},
-					{"name": "user_id", "in": "query", "required": true, "schema": {"type": "string", "format": "uuid"}, "description": "Host user ID"}
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Challenge ID"
+					},
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Host user ID"
+					}
 				],
 				"requestBody": {
 					"required": true,
@@ -1191,11 +1211,16 @@
 						"application/json": {
 							"schema": {
 								"type": "object",
-								"required": ["userIds"],
+								"required": [
+									"userIds"
+								],
 								"properties": {
 									"userIds": {
 										"type": "array",
-										"items": {"type": "string", "format": "uuid"},
+										"items": {
+											"type": "string",
+											"format": "uuid"
+										},
 										"description": "Array of friend user IDs to invite"
 									}
 								}
@@ -1204,69 +1229,198 @@
 					}
 				},
 				"responses": {
-					"201": {"description": "Invitations sent", "content": {"application/json": {"schema": {"type": "object", "properties": {"invited": {"type": "array", "items": {"type": "object"}}, "skipped": {"type": "array", "items": {"type": "string", "format": "uuid"}}}}}}},
-					"400": {"description": "Validation error or invitee not a friend"},
-					"403": {"description": "Not the host"},
-					"409": {"description": "Challenge not in formation or no slots available"}
+					"201": {
+						"description": "Invitations sent",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"invited": {
+											"type": "array",
+											"items": {
+												"type": "object"
+											}
+										},
+										"skipped": {
+											"type": "array",
+											"items": {
+												"type": "string",
+												"format": "uuid"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Validation error or invitee not a friend"
+					},
+					"403": {
+						"description": "Not the host"
+					},
+					"409": {
+						"description": "Challenge not in formation or no slots available"
+					}
 				}
 			}
 		},
 		"/api/challenges/{id}/join": {
 			"post": {
-				"tags": ["Challenge Formation"],
+				"tags": [
+					"Challenge Formation"
+				],
 				"summary": "Accept challenge invitation",
 				"operationId": "joinChallenge",
 				"description": "Accept an invitation to join a challenge. Must have been invited and challenge must be in formation.",
 				"parameters": [
-					{"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}, "description": "Challenge ID"},
-					{"name": "user_id", "in": "query", "required": true, "schema": {"type": "string", "format": "uuid"}, "description": "User accepting the invitation"}
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Challenge ID"
+					},
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "User accepting the invitation"
+					}
 				],
 				"responses": {
-					"200": {"description": "Joined successfully", "content": {"application/json": {"schema": {"type": "object", "properties": {"member": {"$ref": "#/components/schemas/ChallengeMember"}}}}}},
-					"400": {"description": "Missing user_id"},
-					"403": {"description": "No invitation found"},
-					"409": {"description": "Challenge not in formation or full"}
+					"200": {
+						"description": "Joined successfully",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"member": {
+											"$ref": "#/components/schemas/ChallengeMember"
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Missing user_id"
+					},
+					"403": {
+						"description": "No invitation found"
+					},
+					"409": {
+						"description": "Challenge not in formation or full"
+					}
 				}
 			},
 			"get": {
-				"tags": ["Challenge Formation"],
+				"tags": [
+					"Challenge Formation"
+				],
 				"summary": "View pending invitations (browser-friendly)",
 				"operationId": "getJoinStatus",
 				"description": "View invited members for a challenge. Browser-testable GET endpoint.",
 				"parameters": [
-					{"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}, "description": "Challenge ID"}
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Challenge ID"
+					}
 				],
 				"responses": {
-					"200": {"description": "Invited members list"}
+					"200": {
+						"description": "Invited members list"
+					}
 				}
 			}
 		},
 		"/api/challenges/{id}/decline": {
 			"post": {
-				"tags": ["Challenge Formation"],
+				"tags": [
+					"Challenge Formation"
+				],
 				"summary": "Decline challenge invitation",
 				"operationId": "declineChallenge",
 				"description": "Decline an invitation to a challenge. Must have been invited.",
 				"parameters": [
-					{"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}, "description": "Challenge ID"},
-					{"name": "user_id", "in": "query", "required": true, "schema": {"type": "string", "format": "uuid"}, "description": "User declining the invitation"}
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Challenge ID"
+					},
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "User declining the invitation"
+					}
 				],
 				"responses": {
-					"200": {"description": "Declined successfully"},
-					"400": {"description": "Missing user_id"},
-					"403": {"description": "No invitation found"}
+					"200": {
+						"description": "Declined successfully"
+					},
+					"400": {
+						"description": "Missing user_id"
+					},
+					"403": {
+						"description": "No invitation found"
+					}
 				}
 			}
 		},
 		"/api/challenges/{id}/ready": {
 			"put": {
-				"tags": ["Challenge Formation"],
+				"tags": [
+					"Challenge Formation"
+				],
 				"summary": "Toggle ready status",
 				"operationId": "setReadyStatus",
 				"description": "Toggle is_ready for an accepted member. Only works during formation. Returns readiness count.",
 				"parameters": [
-					{"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}, "description": "Challenge ID"},
-					{"name": "user_id", "in": "query", "required": true, "schema": {"type": "string", "format": "uuid"}, "description": "Member user ID"}
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Challenge ID"
+					},
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Member user ID"
+					}
 				],
 				"requestBody": {
 					"required": true,
@@ -1274,65 +1428,639 @@
 						"application/json": {
 							"schema": {
 								"type": "object",
-								"required": ["isReady"],
+								"required": [
+									"isReady"
+								],
 								"properties": {
-									"isReady": {"type": "boolean", "example": true}
+									"isReady": {
+										"type": "boolean",
+										"example": true
+									}
 								}
 							}
 						}
 					}
 				},
 				"responses": {
-					"200": {"description": "Ready status updated", "content": {"application/json": {"schema": {"type": "object", "properties": {"is_ready": {"type": "boolean"}, "readiness": {"type": "object", "properties": {"total": {"type": "integer"}, "ready": {"type": "integer"}, "all_ready": {"type": "boolean"}}}}}}}},
-					"400": {"description": "Missing user_id or invalid body"},
-					"403": {"description": "Not an accepted member"},
-					"409": {"description": "Challenge not in formation"}
+					"200": {
+						"description": "Ready status updated",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"is_ready": {
+											"type": "boolean"
+										},
+										"readiness": {
+											"type": "object",
+											"properties": {
+												"total": {
+													"type": "integer"
+												},
+												"ready": {
+													"type": "integer"
+												},
+												"all_ready": {
+													"type": "boolean"
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Missing user_id or invalid body"
+					},
+					"403": {
+						"description": "Not an accepted member"
+					},
+					"409": {
+						"description": "Challenge not in formation"
+					}
 				}
 			},
 			"get": {
-				"tags": ["Challenge Formation"],
+				"tags": [
+					"Challenge Formation"
+				],
 				"summary": "View readiness status (browser-friendly)",
 				"operationId": "getReadyStatus",
 				"description": "View all accepted members and their ready status. Browser-testable.",
 				"parameters": [
-					{"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}, "description": "Challenge ID"}
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Challenge ID"
+					}
 				],
 				"responses": {
-					"200": {"description": "Readiness status for all members"}
+					"200": {
+						"description": "Readiness status for all members"
+					}
 				}
 			}
 		},
 		"/api/challenges/{id}/leave": {
 			"post": {
-				"tags": ["Challenge Formation"],
+				"tags": [
+					"Challenge Formation"
+				],
 				"summary": "Leave a challenge",
 				"operationId": "leaveChallenge",
 				"description": "Leave a formation challenge. Host cannot leave (must cancel instead). Only works during formation.",
 				"parameters": [
-					{"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}, "description": "Challenge ID"},
-					{"name": "user_id", "in": "query", "required": true, "schema": {"type": "string", "format": "uuid"}, "description": "User leaving"}
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Challenge ID"
+					},
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "User leaving"
+					}
 				],
 				"responses": {
-					"200": {"description": "Left successfully", "content": {"application/json": {"schema": {"type": "object", "properties": {"message": {"type": "string", "example": "Left challenge successfully"}, "challenge_id": {"type": "string", "format": "uuid"}}}}}},
-					"400": {"description": "Host cannot leave or challenge is active"},
-					"404": {"description": "Not a member"}
+					"200": {
+						"description": "Left successfully",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"message": {
+											"type": "string",
+											"example": "Left challenge successfully"
+										},
+										"challenge_id": {
+											"type": "string",
+											"format": "uuid"
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Host cannot leave or challenge is active"
+					},
+					"404": {
+						"description": "Not a member"
+					}
 				}
 			}
 		},
 		"/api/challenges/public": {
 			"get": {
-				"tags": ["Challenge Formation"],
+				"tags": [
+					"Challenge Formation"
+				],
 				"summary": "Browse public challenges",
 				"operationId": "getPublicChallenges",
 				"description": "Search/browse public formation challenges that are not full. Optionally exclude challenges user is already in. Browser-testable.\n\nTest: /api/challenges/public?q=wake&user_id=UUID",
 				"parameters": [
-					{"name": "q", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Search keyword (matches title/description)"},
-					{"name": "user_id", "in": "query", "required": false, "schema": {"type": "string", "format": "uuid"}, "description": "Exclude challenges user is already in"},
-					{"name": "page", "in": "query", "schema": {"type": "integer", "default": 1}},
-					{"name": "limit", "in": "query", "schema": {"type": "integer", "default": 20, "maximum": 50}}
+					{
+						"name": "q",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						},
+						"description": "Search keyword (matches title/description)"
+					},
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Exclude challenges user is already in"
+					},
+					{
+						"name": "page",
+						"in": "query",
+						"schema": {
+							"type": "integer",
+							"default": 1
+						}
+					},
+					{
+						"name": "limit",
+						"in": "query",
+						"schema": {
+							"type": "integer",
+							"default": 20,
+							"maximum": 50
+						}
+					}
 				],
 				"responses": {
-					"200": {"description": "Public challenges with pagination", "content": {"application/json": {"schema": {"type": "object", "properties": {"challenges": {"type": "array", "items": {"$ref": "#/components/schemas/ChallengeSummary"}}, "total": {"type": "integer"}, "page": {"type": "integer"}, "limit": {"type": "integer"}}}}}}
+					"200": {
+						"description": "Public challenges with pagination",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"challenges": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/ChallengeSummary"
+											}
+										},
+										"total": {
+											"type": "integer"
+										},
+										"page": {
+											"type": "integer"
+										},
+										"limit": {
+											"type": "integer"
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/api/challenges/{id}/checkins": {
+			"post": {
+				"tags": [
+					"Check-in"
+				],
+				"summary": "Submit check-in",
+				"operationId": "submitCheckin",
+				"description": "Submit a check-in for the current cycle. Auto-calculates cycle number from challenge start_at.\n\nTest: POST with { \"caption\": \"Day 4 done!\" }",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Challenge ID (must be 'active' status)"
+					},
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateCheckinDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "Check-in submitted",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"checkin": {
+											"$ref": "#/components/schemas/Checkin"
+										},
+										"total_checkins": {
+											"type": "integer",
+											"example": 4
+										},
+										"squad_status": {
+											"type": "object",
+											"properties": {
+												"hearts_left": {
+													"type": "integer"
+												},
+												"members_checked_in": {
+													"type": "integer"
+												},
+												"members_total": {
+													"type": "integer"
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Not an accepted member"
+					},
+					"409": {
+						"description": "Challenge not active / already checked in"
+					}
+				}
+			},
+			"get": {
+				"tags": [
+					"Check-in"
+				],
+				"summary": "Gallery — browse all check-ins",
+				"operationId": "getCheckinGallery",
+				"description": "Paginated list of all check-ins with user info. Filter by member_id. Browser-testable.\n\nTest: /api/challenges/{id}/checkins?page=1&limit=10",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Challenge ID (must be 'active' or 'completed')"
+					},
+					{
+						"name": "member_id",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Filter by specific member"
+					},
+					{
+						"name": "page",
+						"in": "query",
+						"schema": {
+							"type": "integer",
+							"default": 1
+						}
+					},
+					{
+						"name": "limit",
+						"in": "query",
+						"schema": {
+							"type": "integer",
+							"default": 20,
+							"maximum": 50
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Paginated check-ins",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"checkins": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/Checkin"
+											}
+										},
+										"total": {
+											"type": "integer"
+										},
+										"page": {
+											"type": "integer"
+										},
+										"limit": {
+											"type": "integer"
+										}
+									}
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Challenge not active or completed"
+					}
+				}
+			}
+		},
+		"/api/challenges/{id}/checkins/today": {
+			"get": {
+				"tags": [
+					"Check-in"
+				],
+				"summary": "Today's check-in status",
+				"operationId": "getTodayCheckinStatus",
+				"description": "View all members' check-in status for the current cycle with countdown to reset. Browser-testable.\n\nTest: /api/challenges/{id}/checkins/today",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Challenge ID (must be 'active')"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Today's status",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"challenge_id": {
+											"type": "string",
+											"format": "uuid"
+										},
+										"cycle_number": {
+											"type": "integer",
+											"example": 4
+										},
+										"duration_days": {
+											"type": "integer",
+											"example": 30
+										},
+										"hearts_left": {
+											"type": "integer"
+										},
+										"reset_at": {
+											"type": "string",
+											"format": "date-time"
+										},
+										"time_until_reset": {
+											"type": "integer",
+											"description": "Seconds until next reset"
+										},
+										"members": {
+											"type": "array",
+											"items": {
+												"type": "object",
+												"properties": {
+													"user_id": {
+														"type": "string",
+														"format": "uuid"
+													},
+													"username": {
+														"type": "string"
+													},
+													"display_name": {
+														"type": "string"
+													},
+													"avatar_url": {
+														"type": "string",
+														"nullable": true
+													},
+													"status": {
+														"type": "string",
+														"enum": [
+															"checked_in",
+															"pending"
+														]
+													},
+													"checked_in_at": {
+														"type": "string",
+														"format": "date-time",
+														"nullable": true
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Challenge not found"
+					},
+					"409": {
+						"description": "Challenge not active"
+					}
+				}
+			}
+		},
+		"/api/challenges/{id}/stats": {
+			"get": {
+				"tags": [
+					"Check-in"
+				],
+				"summary": "Challenge statistics",
+				"operationId": "getChallengeStats",
+				"description": "Aggregated stats: completion rate, top performer, per-member breakdown. Browser-testable.\n\nTest: /api/challenges/{id}/stats",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Challenge ID (must be 'active' or 'completed')"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Challenge statistics",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"challenge_id": {
+											"type": "string",
+											"format": "uuid"
+										},
+										"status": {
+											"type": "string"
+										},
+										"elapsed_cycles": {
+											"type": "integer"
+										},
+										"duration_days": {
+											"type": "integer"
+										},
+										"hearts_left": {
+											"type": "integer"
+										},
+										"total_checkins": {
+											"type": "integer"
+										},
+										"completion_rate": {
+											"type": "number",
+											"example": 83.3
+										},
+										"top_performer": {
+											"$ref": "#/components/schemas/MemberStat"
+										},
+										"member_stats": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/MemberStat"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Challenge not active or completed"
+					}
+				}
+			}
+		},
+		"/api/challenges/{id}/nudge/{memberId}": {
+			"post": {
+				"tags": [
+					"Check-in"
+				],
+				"summary": "Nudge a member",
+				"operationId": "nudgeMember",
+				"description": "Send a nudge notification to a member who hasn't checked in. Rate limited: 1 nudge per target per day per challenge.\n\nRequires user_id query param (the nudger).",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Challenge ID"
+					},
+					{
+						"name": "memberId",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Target member to nudge"
+					},
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "The user sending the nudge"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Nudge sent"
+					},
+					"400": {
+						"description": "Cannot nudge self / target already checked in"
+					},
+					"403": {
+						"description": "Both users must be accepted members"
+					},
+					"429": {
+						"description": "Already nudged today"
+					}
+				}
+			},
+			"get": {
+				"tags": [
+					"Check-in"
+				],
+				"summary": "View nudge history",
+				"operationId": "getNudgeHistory",
+				"description": "View recent nudges for a member in a challenge. Browser-testable.\n\nTest: /api/challenges/{id}/nudge/{memberId}",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
+					},
+					{
+						"name": "memberId",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Recent nudges"
+					}
 				}
 			}
 		}
@@ -1413,7 +2141,10 @@
 					},
 					"invitedUserIds": {
 						"type": "array",
-						"items": {"type": "string", "format": "uuid"},
+						"items": {
+							"type": "string",
+							"format": "uuid"
+						},
 						"description": "Optional: invite friends when creating"
 					},
 					"startAt": {
@@ -1685,6 +2416,83 @@
 								}
 							}
 						}
+					}
+				}
+			},
+			"CreateCheckinDto": {
+				"type": "object",
+				"properties": {
+					"evidenceUrl": {
+						"type": "string",
+						"format": "uri",
+						"description": "Optional photo evidence URL"
+					},
+					"caption": {
+						"type": "string",
+						"maxLength": 280,
+						"example": "Day 4 done! 🎉"
+					}
+				}
+			},
+			"Checkin": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"format": "uuid"
+					},
+					"challenge_id": {
+						"type": "string",
+						"format": "uuid"
+					},
+					"user_id": {
+						"type": "string",
+						"format": "uuid"
+					},
+					"cycle_number": {
+						"type": "integer",
+						"example": 4
+					},
+					"evidence_url": {
+						"type": "string",
+						"nullable": true
+					},
+					"caption": {
+						"type": "string",
+						"nullable": true
+					},
+					"checked_in_at": {
+						"type": "string",
+						"format": "date-time"
+					}
+				}
+			},
+			"MemberStat": {
+				"type": "object",
+				"properties": {
+					"user_id": {
+						"type": "string",
+						"format": "uuid"
+					},
+					"username": {
+						"type": "string"
+					},
+					"display_name": {
+						"type": "string"
+					},
+					"avatar_url": {
+						"type": "string",
+						"nullable": true
+					},
+					"checkin_count": {
+						"type": "integer"
+					},
+					"missed_count": {
+						"type": "integer"
+					},
+					"completion_rate": {
+						"type": "number",
+						"example": 85.7
 					}
 				}
 			}
