@@ -1,7 +1,7 @@
 # Sprint 1 — Foundation & Database Setup
 
 ## Sprint Goal
-Dựng nền tảng hoàn chỉnh: cấu trúc project Next.js, kết nối PostgreSQL (Supabase as DB only), toàn bộ schema DB, middleware cốt lõi, và pipeline deploy Railway — để mọi sprint sau có thể build on top mà không cần sờ vào infra.
+Dựng nền tảng hoàn chỉnh: cấu trúc project Next.js, kết nối PostgreSQL (Railway Plugin), toàn bộ schema DB, middleware cốt lõi, và pipeline deploy Railway — để mọi sprint sau có thể build on top mà không cần sờ vào infra.
 
 **Duration:** 1 tuần  
 **Team:** Backend
@@ -26,9 +26,9 @@ Dựng nền tảng hoàn chỉnh: cấu trúc project Next.js, kết nối Post
 
 ---
 
-## Task 2 — Kết nối PostgreSQL (Supabase DB only)
+## Task 2 — Kết nối PostgreSQL (Railway Plugin)
 
-**Mô tả:** Dùng thư viện `postgres` (hoặc `pg` + `node-postgres`) để kết nối thẳng vào PostgreSQL connection string của Supabase. **Không dùng supabase-js client**, không dùng Supabase Auth/Realtime/Storage.
+**Mô tả:** Dùng thư viện `postgres` (hoặc `pg` + `node-postgres`) để kết nối vào PostgreSQL do Railway Plugin cung cấp. Railway tự inject `DATABASE_URL` vào environment khi add PostgreSQL plugin.
 
 **TDD:**
 ```
@@ -39,7 +39,7 @@ Dựng nền tảng hoàn chỉnh: cấu trúc project Next.js, kết nối Post
 
 **Done when:**
 - File `src/lib/db.ts` export `query(sql, params)` wrapper
-- `.env.local` có `DATABASE_URL` trỏ vào Supabase
+- `.env.local` có `DATABASE_URL` trỏ vào Railway PostgreSQL (hoặc local PostgreSQL cho dev)
 - Connection pool được reuse giữa các request (không tạo mới mỗi lần)
 
 ---
@@ -90,8 +90,8 @@ refresh_tokens (id UUID PK, user_id FK users, token_hash TEXT, expires_at TIMEST
 ```
 
 **Done when:**
-- Tất cả bảng tồn tại trong Supabase DB
-- Indexes tạo trên: `users.email`, `users.username`, `users.google_id`, `challenge_members(challenge_id, user_id)`, `checkins(challenge_id, user_id, cycle_number)`, `notifications(user_id, is_read)`, `friend_requests(receiver_id, status)`
+- Tất cả bảng tồn tại trong Railway PostgreSQL
+- Indexes tạo trên: `users.email`, `users.username`, `challenge_members(challenge_id, user_id)`, `checkins(challenge_id, user_id, cycle_number)`, `notifications(user_id, is_read)`, `friend_requests(receiver_id, status)`
 - Script `npm run db:migrate` chạy idempotent
 
 ---
@@ -103,11 +103,9 @@ refresh_tokens (id UUID PK, user_id FK users, token_hash TEXT, expires_at TIMEST
 **Env variables cần thiết:**
 
 ```
-DATABASE_URL
+DATABASE_URL          # Railway tự inject khi add PostgreSQL plugin
 JWT_ACCESS_SECRET
 JWT_REFRESH_SECRET
-SUPABASE_URL
-SUPABASE_SERVICE_ROLE_KEY
 CRON_SECRET
 APP_BASE_URL
 NODE_ENV

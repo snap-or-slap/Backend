@@ -14,16 +14,16 @@
 
 #### Database
 
-- **PostgreSQL** — host trên **Supabase** (chỉ dùng như DB thuần túy).
+- **PostgreSQL** — host trên **Railway** (PostgreSQL Plugin).
 - Kết nối qua **connection string** (`DATABASE_URL`) bằng thư viện `postgres` (hoặc `pg`).
-- **Không dùng** supabase-js client, Supabase Auth, Supabase Realtime — tất cả logic phải tự code.
+- Railway tự inject `DATABASE_URL` khi add PostgreSQL plugin vào project.
 - Migration chạy thủ công bằng script SQL (`npm run db:migrate`).
 
 #### File Storage
 
-- **Supabase Storage** — lưu ảnh avatar và check-in evidence.
-- Dùng Supabase Storage REST API trực tiếp (không dùng supabase-js client).
+- **Railway Volume** hoặc **S3-compatible storage** (Cloudflare R2 / AWS S3) — lưu ảnh avatar và check-in evidence.
 - Lưu path vào DB, không lưu full URL cứng.
+- Tính năng file storage sẽ được cấu hình chi tiết trong sprint sau.
 
 #### Auth & Security
 
@@ -136,7 +136,7 @@ Deploy live (zero-downtime rolling deploy)
 
 #### Image Loading
 
-- **Coil** — load và cache ảnh từ Supabase Storage URL (avatar, check-in gallery).
+- **Coil** — load và cache ảnh từ server URL (avatar, check-in gallery).
 
 #### Local Storage
 
