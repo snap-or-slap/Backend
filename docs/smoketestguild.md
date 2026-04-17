@@ -718,9 +718,9 @@ curl -s "https://backend-production-2ba1.up.railway.app/api/users/me/profile?use
 ### 57i. OpenAPI Docs (GET)
 
 ```bash
-# Swagger JSON (v0.9.0 with Sprint 8 endpoints)
+# Swagger JSON (v0.10.0 with Sprint 9 endpoints)
 curl -s "https://backend-production-2ba1.up.railway.app/api/docs" | python -m json.tool | head -5
-# ✅ 200 { "openapi": "3.0.3", "info": { "title": "SOS App...", "version": "0.9.0" } }
+# ✅ 200 { "openapi": "3.0.3", "info": { "title": "SOS App...", "version": "0.10.0" } }
 
 # Swagger UI
 # Open in browser: https://backend-production-2ba1.up.railway.app/api/docs/ui
@@ -1021,4 +1021,104 @@ curl -s "$BASE/api/widget/summary?user_id=$ALICE"
 
 echo "\n=== Sync pending ==="
 curl -s "$BASE/api/sync?user_id=$ALICE"
+
+echo "\n=== Sprint 9: Challenge History ==="
+curl -s "$BASE/api/challenges/$CH3/history?user_id=$ALICE"
+
+echo "\n=== Sprint 9: History List ==="
+curl -s "$BASE/api/users/me/challenges/history?user_id=$ALICE"
+
+echo "\n=== Sprint 9: Milestone Check ==="
+curl -s -X POST "$BASE/api/challenges/$CH3/milestone-check?user_id=$ALICE"
+```
+
+---
+
+## Sprint 9 — History, Recreate & Milestones
+
+### 72. Challenge History Detail (GET)
+
+```bash
+# Completed challenge — should return CONGRATULATIONS banner
+curl -s "https://backend-production-2ba1.up.railway.app/api/challenges/fcdd1c90-f8d1-4055-b32f-739d3e5f75fb/history?user_id=9065e038-3ebf-411f-af59-d64e12259533"
+# ✅ 200 { challenge: {...}, result_banner: "CONGRATULATIONS", final_stats: { avgCompletion: 0.85, totalCheckins: 14 }, previous_squadmates: [...3 members...], gallery_preview: [...], recreate_eligible: false, has_child_challenge: true }
+
+# Cancelled challenge — should return CANCELLED banner
+curl -s "https://backend-production-2ba1.up.railway.app/api/challenges/f79aacef-8b1e-469d-b99c-afcba004f02a/history?user_id=9065e038-3ebf-411f-af59-d64e12259533"
+# ✅ 200 { challenge: {..., status: "cancelled"}, result_banner: "CANCELLED", ... }
+
+# Active/formation challenge → 409
+curl -s "https://backend-production-2ba1.up.railway.app/api/challenges/16eda1da-1b3e-4753-88f3-e41cd4e8f42a/history?user_id=e30d4258-a336-4dcb-9534-7c753e765db7"
+# ✅ 409 { error: "Challenge is not yet finished..." }
+
+# Missing user_id → 400
+curl -s "https://backend-production-2ba1.up.railway.app/api/challenges/fcdd1c90-f8d1-4055-b32f-739d3e5f75fb/history"
+# ✅ 400 { error: "user_id query parameter is required" }
+```
+
+### 73. Recreate Challenge (POST)
+
+```bash
+# Recreate from completed challenge (7-Day No Sugar)
+curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/challenges/fcdd1c90-f8d1-4055-b32f-739d3e5f75fb/recreate?user_id=9065e038-3ebf-411f-af59-d64e12259533" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "7-Day No Sugar v3"}'
+# ✅ 201 { challenge: { id: "<new-uuid>", title: "7-Day No Sugar v3", parent_challenge_id: "fcdd1c90-...", status: "formation", duration_days: 7 } }
+
+# Non-member trying to recreate → 403
+curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/challenges/fcdd1c90-f8d1-4055-b32f-739d3e5f75fb/recreate?user_id=bf0ab3b2-9802-4c2d-9d7e-b41484521cf7" \
+  -H "Content-Type: application/json" -d '{}'
+# ✅ 403 { error: "You must be a member of the original challenge to recreate it" }
+
+# Active challenge → 409
+curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/challenges/16eda1da-1b3e-4753-88f3-e41cd4e8f42a/recreate?user_id=e30d4258-a336-4dcb-9534-7c753e765db7" \
+  -H "Content-Type: application/json" -d '{}'
+# ✅ 409 { error: "Can only recreate finished challenges..." }
+```
+
+### 74. List Finished Challenges (GET)
+
+```bash
+# All finished challenges with lifetime stats
+curl -s "https://backend-production-2ba1.up.railway.app/api/users/me/challenges/history?user_id=9065e038-3ebf-411f-af59-d64e12259533"
+# ✅ 200 { lifetime_stats: { total_challenges: 2, total_completed: 1, best_streak: 10, total_checkins: 11 }, challenges: [...], total: 2, page: 1, limit: 10 }
+
+# Filter by result=success (only completed)
+curl -s "https://backend-production-2ba1.up.railway.app/api/users/me/challenges/history?user_id=9065e038-3ebf-411f-af59-d64e12259533&result=success"
+# ✅ 200 { challenges: [{ status: "completed" }], total: 1 }
+
+# Filter by result=cancelled
+curl -s "https://backend-production-2ba1.up.railway.app/api/users/me/challenges/history?user_id=9065e038-3ebf-411f-af59-d64e12259533&result=cancelled"
+# ✅ 200 { challenges: [{ status: "cancelled" }], total: 1 }
+
+# Pagination
+curl -s "https://backend-production-2ba1.up.railway.app/api/users/me/challenges/history?user_id=9065e038-3ebf-411f-af59-d64e12259533&page=1&limit=1"
+# ✅ 200 { challenges: [...1 item...], total: 2, page: 1, limit: 1 }
+
+# Missing user_id → 400
+curl -s "https://backend-production-2ba1.up.railway.app/api/users/me/challenges/history"
+# ✅ 400 { error: "user_id query parameter is required" }
+```
+
+### 75. Streak Milestone Check (POST)
+
+```bash
+# Check alice's streak milestones (streak=10, no milestone match)
+curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/challenges/fcdd1c90-f8d1-4055-b32f-739d3e5f75fb/milestone-check?user_id=9065e038-3ebf-411f-af59-d64e12259533"
+# ✅ 200 { milestone_triggered: false, current_streak: 10, best_streak: 10, next_milestone: 14 }
+
+# Missing user_id → 400
+curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/challenges/fcdd1c90-f8d1-4055-b32f-739d3e5f75fb/milestone-check"
+# ✅ 400 { error: "user_id query parameter is required" }
+```
+
+### 75i. OpenAPI Docs (GET)
+
+```bash
+# Swagger JSON (v0.10.0 with Sprint 9 endpoints)
+curl -s "https://backend-production-2ba1.up.railway.app/api/docs" | python -m json.tool | head -5
+# ✅ 200 { "openapi": "3.0.3", "info": { "title": "SOS App...", "version": "0.10.0" } }
+
+# Swagger UI — open in browser:
+# https://backend-production-2ba1.up.railway.app/api/docs/ui
 ```
