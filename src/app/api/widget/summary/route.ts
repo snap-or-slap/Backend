@@ -28,11 +28,11 @@ export async function GET(req: NextRequest) {
 				SELECT 1 FROM checkins
 				WHERE challenge_id = c.id
 				  AND user_id = $1
-				  AND checkin_date = CURRENT_DATE
+				  AND checked_in_at::date = CURRENT_DATE
 			) AS my_checkin_today,
 			(SELECT COUNT(*)::int FROM checkins
 			 WHERE challenge_id = c.id
-			   AND checkin_date = CURRENT_DATE
+			   AND checked_in_at::date = CURRENT_DATE
 			) AS members_checked_in
 		 FROM challenges c
 		 JOIN challenge_members cm ON cm.challenge_id = c.id
