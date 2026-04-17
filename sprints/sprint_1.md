@@ -1,6 +1,7 @@
 # Sprint 1 — Foundation & Database Setup
 
 ## Sprint Goal
+
 Dựng nền tảng hoàn chỉnh: cấu trúc project Next.js, kết nối PostgreSQL (Railway Plugin), toàn bộ schema DB, middleware cốt lõi, và pipeline deploy Railway — để mọi sprint sau có thể build on top mà không cần sờ vào infra.
 
 **Duration:** 1 tuần  
@@ -13,6 +14,7 @@ Dựng nền tảng hoàn chỉnh: cấu trúc project Next.js, kết nối Post
 **Mô tả:** Tổ chức thư mục `src/app/api/` theo domain (auth, users, friends, challenges, notifications). Thiết lập TypeScript strict mode, path aliases, eslint/prettier.
 
 **TDD:**
+
 ```
 - Test: import resolver không báo lỗi alias path
 - Test: `GET /api/health` trả 200 JSON { status: "ok", timestamp }
@@ -20,6 +22,7 @@ Dựng nền tảng hoàn chỉnh: cấu trúc project Next.js, kết nối Post
 ```
 
 **Done when:**
+
 - `src/app/api/health/route.ts` hoạt động và trả `200`
 - Path alias `@/lib/*` resolve đúng
 - `npm run build` không có lỗi TypeScript
@@ -31,6 +34,7 @@ Dựng nền tảng hoàn chỉnh: cấu trúc project Next.js, kết nối Post
 **Mô tả:** Dùng thư viện `postgres` (hoặc `pg` + `node-postgres`) để kết nối vào PostgreSQL do Railway Plugin cung cấp. Railway tự inject `DATABASE_URL` vào environment khi add PostgreSQL plugin.
 
 **TDD:**
+
 ```
 - Test: pool.connect() không throw exception khi env DATABASE_URL hợp lệ
 - Test: `SELECT 1` trả về kết quả đúng
@@ -38,6 +42,7 @@ Dựng nền tảng hoàn chỉnh: cấu trúc project Next.js, kết nối Post
 ```
 
 **Done when:**
+
 - File `src/lib/db.ts` export `query(sql, params)` wrapper
 - `.env.local` có `DATABASE_URL` trỏ vào Railway PostgreSQL (hoặc local PostgreSQL cho dev)
 - Connection pool được reuse giữa các request (không tạo mới mỗi lần)
@@ -82,6 +87,7 @@ refresh_tokens (id UUID PK, user_id FK users, token_hash TEXT, expires_at TIMEST
 ```
 
 **TDD:**
+
 ```
 - Test: migration chạy không có lỗi SQL
 - Test: rollback migration không để lại orphan tables
@@ -90,6 +96,7 @@ refresh_tokens (id UUID PK, user_id FK users, token_hash TEXT, expires_at TIMEST
 ```
 
 **Done when:**
+
 - Tất cả bảng tồn tại trong Railway PostgreSQL
 - Indexes tạo trên: `users.email`, `users.username`, `challenge_members(challenge_id, user_id)`, `checkins(challenge_id, user_id, cycle_number)`, `notifications(user_id, is_read)`, `friend_requests(receiver_id, status)`
 - Script `npm run db:migrate` chạy idempotent
@@ -112,12 +119,14 @@ NODE_ENV
 ```
 
 **TDD:**
+
 ```
 - Test: app throw lỗi rõ ràng nếu DATABASE_URL không có
 - Test: config object export đúng type
 ```
 
 **Done when:**
+
 - File `src/lib/config.ts` parse và validate env bằng zod
 - App crash ngay khi start nếu thiếu required env
 - `.env.example` có đầy đủ key (không có value)
@@ -129,6 +138,7 @@ NODE_ENV
 **Mô tả:** Tạo HOF `withAuth(handler)` wrap route handler, tự động verify JWT và inject `req.user`. Tạo global error handler chuẩn hóa response lỗi.
 
 **TDD:**
+
 ```
 - Test: request không có Bearer token → 401 { error: "Unauthorized" }
 - Test: request có token hết hạn → 401 { error: "Token expired" }
@@ -139,6 +149,7 @@ NODE_ENV
 ```
 
 **Done when:**
+
 - `src/lib/middleware/withAuth.ts` hoạt động
 - `src/lib/middleware/errorHandler.ts` wrap tất cả response lỗi về format `{ error: string, code?: string }`
 - Production mode không trả về stack trace
@@ -150,6 +161,7 @@ NODE_ENV
 **Mô tả:** Định nghĩa Zod schema cho tất cả request body/query params của từng domain. Tạo helper `validate(schema, data)` trả về parsed data hoặc throw 400.
 
 **TDD:**
+
 ```
 - Test: username "abc" (3 chars) bị reject
 - Test: username "valid_user123" (13 chars) được chấp nhận
@@ -159,6 +171,7 @@ NODE_ENV
 ```
 
 **Done when:**
+
 - `src/lib/schemas/` có schema file cho mỗi domain
 - `validate()` helper trả lỗi field-level rõ ràng: `{ field: "username", message: "Must be 4-20 characters" }`
 
@@ -169,6 +182,7 @@ NODE_ENV
 **Mô tả:** Cấu hình Railway để tự động deploy từ Git push. Tạo `railway.json` hoặc `Procfile`, đảm bảo build Next.js standalone hoạt động.
 
 **TDD:**
+
 ```
 - Test: `npm run build` thành công (zero TypeScript errors)
 - Test: `npm start` sau build khởi động server đúng port
@@ -176,6 +190,7 @@ NODE_ENV
 ```
 
 **Done when:**
+
 - Railway project được link với repo
 - Push lên `main` tự động trigger deploy
 - Environment variables được set trong Railway dashboard

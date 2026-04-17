@@ -8,7 +8,7 @@ describe('Validation Schemas', () => {
 				email: 'test@test.com',
 				password: 'Password123!',
 				username: 'abc',
-				displayName: 'Test User',
+				terms_agreed: true,
 			});
 			expect(result.success).toBe(false);
 		});
@@ -19,7 +19,7 @@ describe('Validation Schemas', () => {
 				email: 'test@test.com',
 				password: 'Password123!',
 				username: 'valid_user123',
-				displayName: 'Test User',
+				terms_agreed: true,
 			});
 			expect(result.success).toBe(true);
 		});
@@ -30,7 +30,7 @@ describe('Validation Schemas', () => {
 				email: 'not-an-email',
 				password: 'Password123!',
 				username: 'validuser',
-				displayName: 'Test',
+				terms_agreed: true,
 			});
 			expect(result.success).toBe(false);
 		});
@@ -41,7 +41,7 @@ describe('Validation Schemas', () => {
 				email: 'test@test.com',
 				password: 'short',
 				username: 'validuser',
-				displayName: 'Test',
+				terms_agreed: true,
 			});
 			expect(result.success).toBe(false);
 		});
@@ -52,7 +52,7 @@ describe('Validation Schemas', () => {
 				email: 'test@test.com',
 				password: 'Password123!',
 				username: 'validuser',
-				displayName: 'Test',
+				terms_agreed: true,
 				extraField: 'should be stripped',
 				anotherExtra: 123,
 			});
@@ -71,7 +71,7 @@ describe('Validation Schemas', () => {
 				email: 'test@test.com',
 				password: 'Password123!',
 				username: 'validuser',
-				displayName: 'Test',
+				terms_agreed: true,
 			});
 			expect(data.email).toBe('test@test.com');
 		});

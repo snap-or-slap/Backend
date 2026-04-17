@@ -1,5 +1,20 @@
 # SOS App — Project Guidelines
 
+> **QUAN TRỌNG cho AI session mới:** Đọc hết file này trước khi làm bất cứ điều gì. Các sprint plan trong `sprints/` chỉ là tài liệu tham khảo thiết kế — **không phải source of truth**. Workflow thực tế, cách tương tác DB, cách deploy đều ở đây.
+
+---
+
+## Workflow thực tế (Đã kiểm chứng)
+
+### ⚠️ Đừng tin sprint plan một cách mù quáng
+
+Sprint plans trong `sprints/*.md` mô tả ý định thiết kế, không phải trạng thái hiện tại của code. Trước khi làm bất kỳ task nào:
+
+1. **Đọc code thực tế** — `src/` là source of truth
+2. **Chạy tests** — `npm test` để biết cái gì đang hoạt động
+3. **Kiểm tra Railway vars** — `railway variable list` để biết env thực tế
+4. Sprint plan có thể outdated, có thể sai — luôn ưu tiên code đang chạy
+
 ---
 
 ## Backend
@@ -14,10 +29,10 @@
 
 #### Database
 
-- **PostgreSQL** — host trên **Railway** (PostgreSQL Plugin).
-- Kết nối qua **connection string** (`DATABASE_URL`) bằng thư viện `postgres` (hoặc `pg`).
-- Railway tự inject `DATABASE_URL` khi add PostgreSQL plugin vào project.
-- Migration chạy thủ công bằng script SQL (`npm run db:migrate`).
+- **PostgreSQL** — host trên **Railway** (PostgreSQL Plugin). **Không dùng Supabase.**
+- Kết nối qua `DATABASE_URL` bằng thư viện `pg`.
+- Railway tự inject `DATABASE_URL` (internal) khi Backend và Postgres cùng project.
+- Migration chạy thủ công: `npm run db:migrate`.
 
 #### File Storage
 
@@ -52,41 +67,175 @@
 - Push Notification (Firebase FCM) — defer sang giai đoạn sau.
 - Email (forgot-password, delete-account confirmation) — defer sang giai đoạn sau.
 
-### Deployment & CI/CD
+---
 
-#### Platform
+## Kết nối Database Railway (Thực tế)
 
-- Deploy trên **Railway** — mỗi push lên `main` trigger deploy tự động.
-- Build: `npm run build` → Next.js standalone output.
-- Start: `npm start` trên port `$PORT` (Railway inject tự động).
+### Cấu trúc kết nối
 
-#### Environment Variables
+Railway PostgreSQL plugin cung cấp 2 loại URL:
 
-- Quản lý trong **Railway Dashboard** (không commit `.env` lên Git).
-- File `.env.example` trong repo chứa đủ key nhưng không có value.
-- Local dev dùng `.env.local` (đã có trong `.gitignore`).
+| URL | Dùng khi nào |
+|-----|-------------|
+| `postgres.railway.internal:5432/railway` | Backend service trên Railway (internal, không cần SSL) |
+| `nozomi.proxy.rlwy.net:PORT/railway` | Kết nối từ máy local / migration local |
 
-#### CI/CD Flow
+### File `src/lib/db.ts` — Pattern chuẩn
 
-```text
-git push origin main
-    ↓
-Railway detect push → trigger build
-    ↓
-npm ci → npm run build (TypeScript compile + Next.js build)
-    ↓
-Health check: GET /api/health phải trả 200
-    ↓
-Deploy live (zero-downtime rolling deploy)
+```typescript
+import { Pool, QueryResult, QueryResultRow } from 'pg';
+
+const isInternalConnection = process.env.DATABASE_URL?.includes('.railway.internal');
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+  ssl: isInternalConnection ? false : { rejectUnauthorized: false },
+});
 ```
 
-#### Branching
+- Internal URL (`*.railway.internal`) → **KHÔNG dùng SSL**
+- External/public URL → `ssl: { rejectUnauthorized: false }`
+- Sai SSL config = connection bị treo hoặc fail
+
+### Lấy Railway PostgreSQL credentials
+
+```powershell
+# Xem vars của Postgres service
+railway variable list -s Postgres
+
+# Kết quả quan trọng:
+# DATABASE_URL          = postgresql://...@postgres.railway.internal:5432/railway  (internal)
+# DATABASE_PUBLIC_URL   = postgresql://...@nozomi.proxy.rlwy.net:PORT/railway       (public)
+```
+
+### Chạy migration từ máy local
+
+```powershell
+# Dùng public URL (vì local không access được internal)
+$env:DATABASE_URL="postgresql://postgres:PASSWORD@nozomi.proxy.rlwy.net:PORT/railway"
+npx ts-node -P tsconfig.migrate.json src/lib/db/migrate.ts
+```
+
+> **Không dùng** `npx ts-node src/lib/db/migrate.ts` (thiếu `-P tsconfig.migrate.json` → lỗi `__dirname is not defined`)
+
+### Set DATABASE_URL cho Backend service
+
+```powershell
+# Set internal URL cho Backend (không có SSL overhead)
+railway variable set "DATABASE_URL=postgresql://postgres:PASSWORD@postgres.railway.internal:5432/railway" -s Backend
+```
+
+---
+
+## Environment Variables
+
+### Required (validate bằng Zod khi startup)
+
+```
+DATABASE_URL          # Railway tự inject — internal URL
+JWT_ACCESS_SECRET
+JWT_REFRESH_SECRET
+CRON_SECRET
+APP_BASE_URL
+NODE_ENV
+```
+
+### Không còn dùng (đã xóa)
+
+- ~~`SUPABASE_URL`~~ — không dùng Supabase
+- ~~`SUPABASE_SERVICE_ROLE_KEY`~~ — không dùng Supabase
+- ~~`DIRECT_URL`~~ — không cần, chỉ cần `DATABASE_URL`
+- ~~`PORT`~~ (manual) — **KHÔNG set PORT trong Railway**, để Railway tự assign
+
+### Xem/sửa Railway env vars
+
+```powershell
+railway variable list                          # Xem tất cả vars của service hiện tại
+railway variable list -s Postgres             # Xem vars của Postgres service
+railway variable set "KEY=value" -s Backend   # Set var cho Backend
+railway variable delete KEY                   # Xóa var
+```
+
+---
+
+## Deployment & CI/CD
+
+### Platform
+
+- Deploy trên **Railway** — mỗi push lên `main` trigger deploy tự động.
+- Build config: `railway.toml`
+- **Không set PORT thủ công** — Railway tự assign, server lắng nghe `0.0.0.0`
+
+### `railway.toml` — Cấu hình chuẩn
+
+```toml
+[build]
+builder = "nixpacks"
+buildCommand = "npm run build"
+
+[deploy]
+startCommand = "HOSTNAME=0.0.0.0 node .next/standalone/server.js"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+```
+
+- `HOSTNAME=0.0.0.0` bắt buộc — Next.js standalone mặc định bind `localhost` (không accessible từ ngoài)
+- Không dùng `npm start` làm startCommand — dùng trực tiếp `node .next/standalone/server.js`
+
+### CI/CD Flow thực tế
+
+```text
+npm test                    ← Chạy trước khi push, phải pass hết
+git add -A
+git commit -m "feat: ..."
+git pull --rebase origin main   ← Luôn pull trước khi push để tránh conflict
+git push origin main
+    ↓
+Railway detect push → trigger build (~80-100 giây)
+    ↓
+npm ci → npm run build (TypeScript + Next.js)
+    ↓
+Healthcheck: GET /api/health phải trả 200
+    ↓
+Deploy live
+```
+
+### Kiểm tra sau deploy
+
+```powershell
+# Xem build logs
+railway logs --build | Select-Object -Last 20
+
+# Xem runtime logs
+railway logs | Out-String
+
+# Test health endpoint
+Invoke-RestMethod "https://backend-production-2ba1.up.railway.app/api/health"
+# → { status: "ok", uptime: 60.x }
+```
+
+### Xử lý lỗi 502
+
+502 thường do một trong các nguyên nhân sau:
+
+| Nguyên nhân | Cách fix |
+|---|---|
+| `PORT` được set cứng trong Railway vars | `railway variable delete PORT` |
+| Thiếu `HOSTNAME=0.0.0.0` trong startCommand | Thêm vào `railway.toml` |
+| `DATABASE_URL` sai → app crash khi start | Kiểm tra `railway variable list`, đặt đúng URL |
+| SSL config sai với Railway internal DB | Xem pattern `isInternalConnection` ở trên |
+
+### Branching
 
 - `main` — production. Chỉ merge khi tests pass.
 - Feature branch: `feat/sprint-X-task-name`.
 - Không force push lên `main`.
 
-#### Health Check
+### Health Check
 
 - `GET /api/health` trả `{ status: "ok", db: "ok", uptime: number }`.
 - Railway dùng endpoint này để xác nhận deploy thành công.
