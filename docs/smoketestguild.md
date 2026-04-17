@@ -727,8 +727,11 @@ curl -s "https://backend-production-2ba1.up.railway.app/api/docs" | python -m js
 ```
 
 # Nudge again → rate limited
-curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/challenges/f79aacef-8b1e-469d-b99c-afcba004f02a/nudge/e30d4258-a336-4dcb-9534-7c753e765db7?user_id=9065e038-3ebf-411f-af59-d64e12259533"
+
+curl -s -X POST "<https://backend-production-2ba1.up.railway.app/api/challenges/f79aacef-8b1e-469d-b99c-afcba004f02a/nudge/e30d4258-a336-4dcb-9534-7c753e765db7?user_id=9065e038-3ebf-411f-af59-d64e12259533>"
+
 # ✅ 429 { "error": "Already nudged this member today" }
+
 ```
 
 ### 56f. Nudge History (GET — browser-friendly)

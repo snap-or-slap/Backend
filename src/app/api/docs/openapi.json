@@ -2,8 +2,8 @@
 	"openapi": "3.0.3",
 	"info": {
 		"title": "SOS App — Backend API",
-		"version": "0.8.0",
-		"description": "Snap or Slap challenge app. Sprint 7: Profile & Gamification (user stats, badge system, activity feed, edit profile, settings, change password, delete account). All endpoints return JSON. No auth — use ?user_id=UUID.\n\nTest accounts: alice@example.com / bob@example.com / charlie@example.com / diana@example.com / edward@example.com (password: Password123!)"
+		"version": "0.9.0",
+		"description": "Snap or Slap challenge app. Sprint 8: Notifications & Widget (notification center, mark-read, delete, widget summary, sync overlays). All endpoints return JSON. No auth — use ?user_id=UUID.\n\nTest accounts: alice@example.com / bob@example.com / charlie@example.com / diana@example.com / edward@example.com (password: Password123!)"
 	},
 	"servers": [
 		{
@@ -2281,37 +2281,72 @@
 										"user": {
 											"type": "object",
 											"properties": {
-												"id": { "type": "string", "format": "uuid" },
-												"email": { "type": "string" },
-												"username": { "type": "string" },
-												"display_name": { "type": "string", "nullable": true },
-												"avatar_url": { "type": "string", "nullable": true },
-												"bio": { "type": "string", "nullable": true },
-												"is_private": { "type": "boolean" },
-												"is_active": { "type": "boolean" },
-												"created_at": { "type": "string", "format": "date-time" }
+												"id": {
+													"type": "string",
+													"format": "uuid"
+												},
+												"email": {
+													"type": "string"
+												},
+												"username": {
+													"type": "string"
+												},
+												"display_name": {
+													"type": "string",
+													"nullable": true
+												},
+												"avatar_url": {
+													"type": "string",
+													"nullable": true
+												},
+												"bio": {
+													"type": "string",
+													"nullable": true
+												},
+												"is_private": {
+													"type": "boolean"
+												},
+												"is_active": {
+													"type": "boolean"
+												},
+												"created_at": {
+													"type": "string",
+													"format": "date-time"
+												}
 											}
 										},
-										"stats": { "$ref": "#/components/schemas/UserStats" },
+										"stats": {
+											"$ref": "#/components/schemas/UserStats"
+										},
 										"badges": {
 											"type": "array",
-											"items": { "$ref": "#/components/schemas/UserBadge" }
+											"items": {
+												"$ref": "#/components/schemas/UserBadge"
+											}
 										},
 										"badges_locked": {
 											"type": "array",
-											"items": { "$ref": "#/components/schemas/Badge" }
+											"items": {
+												"$ref": "#/components/schemas/Badge"
+											}
 										},
 										"recent_activities": {
 											"type": "array",
-											"items": { "$ref": "#/components/schemas/Activity" }
+											"items": {
+												"$ref": "#/components/schemas/Activity"
+											}
 										}
 									}
 								}
 							}
 						}
 					},
-					"400": { "description": "Missing user_id" },
-					"404": { "description": "User not found" }
+					"400": {
+						"description": "Missing user_id"
+					},
+					"404": {
+						"description": "User not found"
+					}
 				}
 			}
 		},
@@ -2327,24 +2362,42 @@
 						"name": "user_id",
 						"in": "query",
 						"required": true,
-						"schema": { "type": "string", "format": "uuid" }
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
 					},
 					{
 						"name": "page",
 						"in": "query",
-						"schema": { "type": "integer", "default": 1, "minimum": 1 }
+						"schema": {
+							"type": "integer",
+							"default": 1,
+							"minimum": 1
+						}
 					},
 					{
 						"name": "limit",
 						"in": "query",
-						"schema": { "type": "integer", "default": 20, "minimum": 1, "maximum": 50 }
+						"schema": {
+							"type": "integer",
+							"default": 20,
+							"minimum": 1,
+							"maximum": 50
+						}
 					},
 					{
 						"name": "type",
 						"in": "query",
 						"schema": {
 							"type": "string",
-							"enum": ["challenge_joined", "challenge_completed", "friend_added", "badge_earned", "checkin_done"]
+							"enum": [
+								"challenge_joined",
+								"challenge_completed",
+								"friend_added",
+								"badge_earned",
+								"checkin_done"
+							]
 						},
 						"description": "Filter by activity type"
 					}
@@ -2359,15 +2412,25 @@
 									"properties": {
 										"activities": {
 											"type": "array",
-											"items": { "$ref": "#/components/schemas/Activity" }
+											"items": {
+												"$ref": "#/components/schemas/Activity"
+											}
 										},
 										"pagination": {
 											"type": "object",
 											"properties": {
-												"page": { "type": "integer" },
-												"limit": { "type": "integer" },
-												"total": { "type": "integer" },
-												"total_pages": { "type": "integer" }
+												"page": {
+													"type": "integer"
+												},
+												"limit": {
+													"type": "integer"
+												},
+												"total": {
+													"type": "integer"
+												},
+												"total_pages": {
+													"type": "integer"
+												}
 											}
 										}
 									}
@@ -2375,7 +2438,9 @@
 							}
 						}
 					},
-					"400": { "description": "Missing user_id" }
+					"400": {
+						"description": "Missing user_id"
+					}
 				}
 			}
 		},
@@ -2391,7 +2456,10 @@
 						"name": "user_id",
 						"in": "query",
 						"required": true,
-						"schema": { "type": "string", "format": "uuid" }
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
 					}
 				],
 				"responses": {
@@ -2402,13 +2470,17 @@
 								"schema": {
 									"type": "object",
 									"properties": {
-										"stats": { "$ref": "#/components/schemas/UserStats" }
+										"stats": {
+											"$ref": "#/components/schemas/UserStats"
+										}
 									}
 								}
 							}
 						}
 					},
-					"400": { "description": "Missing user_id" }
+					"400": {
+						"description": "Missing user_id"
+					}
 				}
 			}
 		},
@@ -2424,7 +2496,10 @@
 						"name": "user_id",
 						"in": "query",
 						"required": true,
-						"schema": { "type": "string", "format": "uuid" }
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
 					}
 				],
 				"responses": {
@@ -2435,14 +2510,20 @@
 								"schema": {
 									"type": "object",
 									"properties": {
-										"stats": { "$ref": "#/components/schemas/UserStats" },
-										"message": { "type": "string" }
+										"stats": {
+											"$ref": "#/components/schemas/UserStats"
+										},
+										"message": {
+											"type": "string"
+										}
 									}
 								}
 							}
 						}
 					},
-					"400": { "description": "Missing user_id" }
+					"400": {
+						"description": "Missing user_id"
+					}
 				}
 			}
 		},
@@ -2458,7 +2539,10 @@
 						"name": "user_id",
 						"in": "query",
 						"required": true,
-						"schema": { "type": "string", "format": "uuid" }
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
 					}
 				],
 				"requestBody": {
@@ -2467,9 +2551,14 @@
 						"application/json": {
 							"schema": {
 								"type": "object",
-								"required": ["isPrivate"],
+								"required": [
+									"isPrivate"
+								],
 								"properties": {
-									"isPrivate": { "type": "boolean", "example": true }
+									"isPrivate": {
+										"type": "boolean",
+										"example": true
+									}
 								}
 							}
 						}
@@ -2486,18 +2575,29 @@
 										"user": {
 											"type": "object",
 											"properties": {
-												"id": { "type": "string", "format": "uuid" },
-												"is_private": { "type": "boolean" }
+												"id": {
+													"type": "string",
+													"format": "uuid"
+												},
+												"is_private": {
+													"type": "boolean"
+												}
 											}
 										},
-										"message": { "type": "string" }
+										"message": {
+											"type": "string"
+										}
 									}
 								}
 							}
 						}
 					},
-					"400": { "description": "Missing user_id or invalid body" },
-					"404": { "description": "User not found" }
+					"400": {
+						"description": "Missing user_id or invalid body"
+					},
+					"404": {
+						"description": "User not found"
+					}
 				}
 			}
 		},
@@ -2513,7 +2613,10 @@
 						"name": "user_id",
 						"in": "query",
 						"required": true,
-						"schema": { "type": "string", "format": "uuid" }
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
 					}
 				],
 				"requestBody": {
@@ -2522,20 +2625,38 @@
 						"application/json": {
 							"schema": {
 								"type": "object",
-								"required": ["currentPassword", "newPassword"],
+								"required": [
+									"currentPassword",
+									"newPassword"
+								],
 								"properties": {
-									"currentPassword": { "type": "string", "example": "Password123!" },
-									"newPassword": { "type": "string", "minLength": 8, "example": "NewPassword456!" }
+									"currentPassword": {
+										"type": "string",
+										"example": "Password123!"
+									},
+									"newPassword": {
+										"type": "string",
+										"minLength": 8,
+										"example": "NewPassword456!"
+									}
 								}
 							}
 						}
 					}
 				},
 				"responses": {
-					"200": { "description": "Password changed successfully" },
-					"400": { "description": "Validation error" },
-					"401": { "description": "Current password is incorrect" },
-					"404": { "description": "User not found" }
+					"200": {
+						"description": "Password changed successfully"
+					},
+					"400": {
+						"description": "Validation error"
+					},
+					"401": {
+						"description": "Current password is incorrect"
+					},
+					"404": {
+						"description": "User not found"
+					}
 				}
 			}
 		},
@@ -2551,7 +2672,10 @@
 						"name": "user_id",
 						"in": "query",
 						"required": true,
-						"schema": { "type": "string", "format": "uuid" }
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
 					}
 				],
 				"responses": {
@@ -2564,16 +2688,408 @@
 									"properties": {
 										"awarded": {
 											"type": "array",
-											"items": { "type": "string" },
+											"items": {
+												"type": "string"
+											},
 											"description": "List of newly awarded badge slugs"
 										},
-										"message": { "type": "string" }
+										"message": {
+											"type": "string"
+										}
 									}
 								}
 							}
 						}
 					},
-					"400": { "description": "Missing user_id" }
+					"400": {
+						"description": "Missing user_id"
+					}
+				}
+			}
+		},
+		"/api/notifications": {
+			"get": {
+				"tags": [
+					"Notifications"
+				],
+				"summary": "List notifications",
+				"description": "Returns paginated notifications for the user. Optional filters: is_read (true/false), category (social/challenge/system). Category maps: social = friend_request, friend_accepted; challenge = challenge_invite, challenge_start, heart_lost, nudge; system = badge_earned.",
+				"parameters": [
+					{
+						"in": "query",
+						"name": "user_id",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
+					},
+					{
+						"in": "query",
+						"name": "is_read",
+						"schema": {
+							"type": "string",
+							"enum": [
+								"true",
+								"false"
+							]
+						}
+					},
+					{
+						"in": "query",
+						"name": "category",
+						"schema": {
+							"type": "string",
+							"enum": [
+								"social",
+								"challenge",
+								"system"
+							]
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"schema": {
+							"type": "integer",
+							"default": 1
+						}
+					},
+					{
+						"in": "query",
+						"name": "limit",
+						"schema": {
+							"type": "integer",
+							"default": 20,
+							"maximum": 50
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Paginated notification list",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"notifications": {
+											"type": "array",
+											"items": {
+												"type": "object",
+												"properties": {
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													},
+													"type": {
+														"type": "string",
+														"enum": [
+															"friend_request",
+															"friend_accepted",
+															"challenge_invite",
+															"challenge_start",
+															"heart_lost",
+															"badge_earned",
+															"nudge"
+														]
+													},
+													"category": {
+														"type": "string",
+														"enum": [
+															"social",
+															"challenge",
+															"system"
+														]
+													},
+													"metadata": {
+														"type": "object"
+													},
+													"is_read": {
+														"type": "boolean"
+													},
+													"created_at": {
+														"type": "string",
+														"format": "date-time"
+													}
+												}
+											}
+										},
+										"unread_count": {
+											"type": "integer"
+										},
+										"total": {
+											"type": "integer"
+										},
+										"page": {
+											"type": "integer"
+										},
+										"limit": {
+											"type": "integer"
+										},
+										"total_pages": {
+											"type": "integer"
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Missing user_id"
+					}
+				}
+			}
+		},
+		"/api/notifications/read": {
+			"put": {
+				"tags": [
+					"Notifications"
+				],
+				"summary": "Mark notifications as read",
+				"description": "Mark specific notifications as read by IDs, or mark all as read with mark_all=true. Idempotent — already-read notifications return updated_count=0.",
+				"parameters": [
+					{
+						"in": "query",
+						"name": "user_id",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"notification_ids": {
+										"type": "array",
+										"items": {
+											"type": "string",
+											"format": "uuid"
+										},
+										"description": "Specific notification IDs to mark as read"
+									},
+									"mark_all": {
+										"type": "boolean",
+										"description": "Set true to mark all notifications as read"
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Notifications marked as read",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"updated_count": {
+											"type": "integer"
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Missing user_id or invalid body"
+					}
+				}
+			}
+		},
+		"/api/notifications/{id}": {
+			"delete": {
+				"tags": [
+					"Notifications"
+				],
+				"summary": "Delete a notification",
+				"description": "Delete a specific notification. Only the owner can delete their notification.",
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
+					},
+					{
+						"in": "query",
+						"name": "user_id",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Notification deleted",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"message": {
+											"type": "string",
+											"example": "Notification deleted"
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Missing user_id"
+					},
+					"404": {
+						"description": "Notification not found or not owned by user"
+					}
+				}
+			}
+		},
+		"/api/widget/summary": {
+			"get": {
+				"tags": [
+					"Widget"
+				],
+				"summary": "Widget summary",
+				"description": "Lightweight endpoint for home screen widget. Returns current streak, active challenges with today's check-in status, and unread notification count.",
+				"parameters": [
+					{
+						"in": "query",
+						"name": "user_id",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Widget summary data",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"current_streak": {
+											"type": "integer"
+										},
+										"active_challenges": {
+											"type": "array",
+											"items": {
+												"type": "object",
+												"properties": {
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													},
+													"title": {
+														"type": "string"
+													},
+													"hearts_left": {
+														"type": "integer"
+													},
+													"total_hearts": {
+														"type": "integer"
+													},
+													"reset_time": {
+														"type": "string"
+													},
+													"member_count": {
+														"type": "integer"
+													},
+													"my_checkin_today": {
+														"type": "boolean"
+													},
+													"members_checked_in": {
+														"type": "integer"
+													}
+												}
+											}
+										},
+										"unread_notifications": {
+											"type": "integer"
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Missing user_id"
+					}
+				}
+			}
+		},
+		"/api/sync": {
+			"get": {
+				"tags": [
+					"Sync"
+				],
+				"summary": "Get pending overlays",
+				"description": "Returns notifications that have not been shown to the user yet (shown_at IS NULL). After retrieval, marks them as shown. Used for overlay/popup display on app open. Returns oldest first.",
+				"parameters": [
+					{
+						"in": "query",
+						"name": "user_id",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Pending overlay notifications",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"pending_overlays": {
+											"type": "array",
+											"items": {
+												"type": "object",
+												"properties": {
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													},
+													"type": {
+														"type": "string"
+													},
+													"metadata": {
+														"type": "object"
+													},
+													"created_at": {
+														"type": "string",
+														"format": "date-time"
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Missing user_id"
+					}
 				}
 			}
 		}
@@ -3153,34 +3669,87 @@
 			"UserStats": {
 				"type": "object",
 				"properties": {
-					"user_id": { "type": "string", "format": "uuid" },
-					"challenges_joined": { "type": "integer", "example": 3 },
-					"challenges_completed": { "type": "integer", "example": 1 },
-					"total_checkins": { "type": "integer", "example": 10 },
-					"current_streak": { "type": "integer", "example": 5 },
-					"best_streak": { "type": "integer", "example": 7 },
-					"updated_at": { "type": "string", "format": "date-time" }
+					"user_id": {
+						"type": "string",
+						"format": "uuid"
+					},
+					"challenges_joined": {
+						"type": "integer",
+						"example": 3
+					},
+					"challenges_completed": {
+						"type": "integer",
+						"example": 1
+					},
+					"total_checkins": {
+						"type": "integer",
+						"example": 10
+					},
+					"current_streak": {
+						"type": "integer",
+						"example": 5
+					},
+					"best_streak": {
+						"type": "integer",
+						"example": 7
+					},
+					"updated_at": {
+						"type": "string",
+						"format": "date-time"
+					}
 				}
 			},
 			"Badge": {
 				"type": "object",
 				"properties": {
-					"id": { "type": "string", "format": "uuid" },
-					"name": { "type": "string", "example": "Week Warrior" },
-					"slug": { "type": "string", "example": "streak-7" },
-					"description": { "type": "string", "example": "Maintained a 7-day streak" },
-					"icon_url": { "type": "string", "example": "/badges/streak-7.png" },
-					"condition_type": { "type": "string", "enum": ["challenges_completed", "streak_days", "early_adopter", "checkins_completed", "squad_mvp"] },
-					"condition_value": { "type": "integer", "example": 7 }
+					"id": {
+						"type": "string",
+						"format": "uuid"
+					},
+					"name": {
+						"type": "string",
+						"example": "Week Warrior"
+					},
+					"slug": {
+						"type": "string",
+						"example": "streak-7"
+					},
+					"description": {
+						"type": "string",
+						"example": "Maintained a 7-day streak"
+					},
+					"icon_url": {
+						"type": "string",
+						"example": "/badges/streak-7.png"
+					},
+					"condition_type": {
+						"type": "string",
+						"enum": [
+							"challenges_completed",
+							"streak_days",
+							"early_adopter",
+							"checkins_completed",
+							"squad_mvp"
+						]
+					},
+					"condition_value": {
+						"type": "integer",
+						"example": 7
+					}
 				}
 			},
 			"UserBadge": {
 				"allOf": [
-					{ "$ref": "#/components/schemas/Badge" },
+					{
+						"$ref": "#/components/schemas/Badge"
+					},
 					{
 						"type": "object",
 						"properties": {
-							"earned_at": { "type": "string", "format": "date-time" }
+							"earned_at": {
+								"type": "string",
+								"format": "date-time"
+							}
 						}
 					}
 				]
@@ -3188,10 +3757,27 @@
 			"Activity": {
 				"type": "object",
 				"properties": {
-					"id": { "type": "string", "format": "uuid" },
-					"type": { "type": "string", "enum": ["challenge_joined", "challenge_completed", "friend_added", "badge_earned", "checkin_done"] },
-					"metadata": { "type": "object" },
-					"created_at": { "type": "string", "format": "date-time" }
+					"id": {
+						"type": "string",
+						"format": "uuid"
+					},
+					"type": {
+						"type": "string",
+						"enum": [
+							"challenge_joined",
+							"challenge_completed",
+							"friend_added",
+							"badge_earned",
+							"checkin_done"
+						]
+					},
+					"metadata": {
+						"type": "object"
+					},
+					"created_at": {
+						"type": "string",
+						"format": "date-time"
+					}
 				}
 			}
 		}
