@@ -718,12 +718,89 @@ curl -s "https://backend-production-2ba1.up.railway.app/api/users/me/profile?use
 ### 57i. OpenAPI Docs (GET)
 
 ```bash
-# Swagger JSON (v0.8.0 with Sprint 7 endpoints)
+# Swagger JSON (v0.9.0 with Sprint 8 endpoints)
 curl -s "https://backend-production-2ba1.up.railway.app/api/docs" | python -m json.tool | head -5
-# ✅ 200 { "openapi": "3.0.3", "info": { "title": "SOS App...", "version": "0.8.0" } }
+# ✅ 200 { "openapi": "3.0.3", "info": { "title": "SOS App...", "version": "0.9.0" } }
 
 # Swagger UI
 # Open in browser: https://backend-production-2ba1.up.railway.app/api/docs/ui
+```
+
+---
+
+## Sprint 8 — Notifications, Widget & Sync
+
+### 67. List Notifications (GET)
+
+```bash
+# All alice's notifications (paginated)
+curl -s "https://backend-production-2ba1.up.railway.app/api/notifications?user_id=9065e038-3ebf-411f-af59-d64e12259533"
+# ✅ 200 { notifications: [...], unread_count: <n>, total: <n>, page: 1, limit: 20, total_pages: 1 }
+
+# Filter by is_read=false
+curl -s "https://backend-production-2ba1.up.railway.app/api/notifications?user_id=9065e038-3ebf-411f-af59-d64e12259533&is_read=false"
+# ✅ 200 { notifications: [... only unread ...], unread_count: <n>, total: <n> }
+
+# Filter by category=social (friend_request, friend_accepted)
+curl -s "https://backend-production-2ba1.up.railway.app/api/notifications?user_id=9065e038-3ebf-411f-af59-d64e12259533&category=social"
+# ✅ 200 { notifications: [{ type: "friend_request", category: "social" }, ...] }
+
+# Filter by category=challenge (challenge_invite, challenge_start, heart_lost, nudge)
+curl -s "https://backend-production-2ba1.up.railway.app/api/notifications?user_id=b2e8239e-edb6-4a92-9482-9df5afc1e0ec&category=challenge"
+# ✅ 200 { notifications: [{ type: "challenge_invite", category: "challenge" }] }
+
+# Pagination
+curl -s "https://backend-production-2ba1.up.railway.app/api/notifications?user_id=9065e038-3ebf-411f-af59-d64e12259533&page=1&limit=3"
+# ✅ 200 { notifications: [...3 items...], total_pages: <n> }
+```
+
+### 68. Mark Notifications Read (PUT)
+
+```bash
+# Mark all as read
+curl -s -X PUT "https://backend-production-2ba1.up.railway.app/api/notifications/read?user_id=9065e038-3ebf-411f-af59-d64e12259533" \
+  -H "Content-Type: application/json" \
+  -d '{"mark_all": true}'
+# ✅ 200 { updated_count: <n> }
+
+# Mark specific IDs as read
+curl -s -X PUT "https://backend-production-2ba1.up.railway.app/api/notifications/read?user_id=9065e038-3ebf-411f-af59-d64e12259533" \
+  -H "Content-Type: application/json" \
+  -d '{"notification_ids": ["<uuid>"]}'
+# ✅ 200 { updated_count: 1 }
+```
+
+### 69. Delete Notification (DELETE)
+
+```bash
+# Delete a specific notification (must belong to user)
+curl -s -X DELETE "https://backend-production-2ba1.up.railway.app/api/notifications/<notification-id>?user_id=9065e038-3ebf-411f-af59-d64e12259533"
+# ✅ 200 { message: "Notification deleted" }
+
+# Delete non-existent → 404
+curl -s -X DELETE "https://backend-production-2ba1.up.railway.app/api/notifications/00000000-0000-0000-0000-000000000000?user_id=9065e038-3ebf-411f-af59-d64e12259533"
+# ✅ 404 { error: "Notification not found" }
+```
+
+### 70. Widget Summary (GET)
+
+```bash
+# Get alice's widget dashboard data
+curl -s "https://backend-production-2ba1.up.railway.app/api/widget/summary?user_id=9065e038-3ebf-411f-af59-d64e12259533"
+# ✅ 200 { current_streak: 10, active_challenges: [...], unread_notifications: 0 }
+# active_challenges includes: id, title, hearts_left, total_hearts, member_count, my_checkin_today, members_checked_in
+```
+
+### 71. Sync Pending Overlays (GET)
+
+```bash
+# First call — returns unseen notifications
+curl -s "https://backend-production-2ba1.up.railway.app/api/sync?user_id=9065e038-3ebf-411f-af59-d64e12259533"
+# ✅ 200 { pending_overlays: [{ id, type, metadata, created_at }, ...] }
+
+# Second call — empty (already marked as shown)
+curl -s "https://backend-production-2ba1.up.railway.app/api/sync?user_id=9065e038-3ebf-411f-af59-d64e12259533"
+# ✅ 200 { pending_overlays: [] }
 ```
 
 # Nudge again → rate limited
@@ -835,8 +912,8 @@ curl -s -o /dev/null -w "%{http_code}" "https://backend-production-2ba1.up.railw
 ## Test Results
 
 ```
-Test Suites: 11 passed, 11 total
-Tests:       164 passed, 2 skipped, 166 total
+Test Suites: 13 passed, 13 total
+Tests:       210 passed, 210 total
 
   src/__tests__/lib/config.test.ts               ✅ Environment validation
   src/__tests__/lib/db.test.ts                   ✅ Database connection
@@ -849,6 +926,8 @@ Tests:       164 passed, 2 skipped, 166 total
   src/__tests__/api/challenges-formation.test.ts ✅ Formation lifecycle (27 tests)
   src/__tests__/api/challenges-checkin.test.ts   ✅ Check-in system (19 tests)
   src/__tests__/api/crons.test.ts                ✅ Cron jobs & cancel (21 tests)
+  src/__tests__/api/profile.test.ts              ✅ Profile & gamification (24 tests)
+  src/__tests__/api/notifications.test.ts        ✅ Notifications, widget & sync (23 tests)
 ```
 
 ---
@@ -930,4 +1009,16 @@ echo "\n=== Docs ==="
 curl -s -o /dev/null -w "OpenAPI: %{http_code}" "$BASE/api/docs"
 echo ""
 curl -s -o /dev/null -w "Swagger UI: %{http_code}" "$BASE/api/docs/ui"
+
+echo "\n=== Notifications ==="
+curl -s "$BASE/api/notifications?user_id=$ALICE"
+
+echo "\n=== Notifications (social) ==="
+curl -s "$BASE/api/notifications?user_id=$ALICE&category=social"
+
+echo "\n=== Widget summary ==="
+curl -s "$BASE/api/widget/summary?user_id=$ALICE"
+
+echo "\n=== Sync pending ==="
+curl -s "$BASE/api/sync?user_id=$ALICE"
 ```
