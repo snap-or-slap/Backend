@@ -28,7 +28,7 @@
 
 | Title | ID | Host | Status | Members |
 |-------|-----|------|--------|---------|
-| Wake Up at 6AM | `f79aacef-8b1e-469d-b99c-afcba004f02a` | alice | active | alice(host), bob(accepted), charlie(invited) |
+| Wake Up at 6AM | `f79aacef-8b1e-469d-b99c-afcba004f02a` | alice | cancelled (was active, host_cancelled via Sprint 6) | alice(host), bob(accepted), charlie(invited) |
 | Read 20 Pages Daily | `16eda1da-1b3e-4753-88f3-e41cd4e8f42a` | bob | formation | bob(host), diana(invited) |
 | 7-Day No Sugar | `fcdd1c90-f8d1-4055-b32f-739d3e5f75fb` | charlie | completed | charlie(host), alice(accepted), bob(accepted) |
 
@@ -626,16 +626,85 @@ curl -s "https://backend-production-2ba1.up.railway.app/api/challenges/f79aacef-
 
 ---
 
+## Sprint 6 — Cron Jobs & Automated Game Logic
+
+### 56. GET Cron Job Info (formation-transition)
+
+```bash
+curl -s "https://backend-production-2ba1.up.railway.app/api/crons/formation-transition"
+# ✅ 200 { "job": "formation-transition", "description": "Transitions formation challenges to active...", "method": "POST with Authorization: Bearer <CRON_SECRET>...", "available_jobs": ["formation-transition","heart-deduction"] }
+```
+
+### 57. GET Cron Job Info (heart-deduction)
+
+```bash
+curl -s "https://backend-production-2ba1.up.railway.app/api/crons/heart-deduction"
+# ✅ 200 { "job": "heart-deduction", "description": "Processes daily heart deductions...", "available_jobs": [...] }
+```
+
+### 58. POST Cron Without Secret → 401
+
+```bash
+curl -s -o /dev/null -w "%{http_code}" -X POST "https://backend-production-2ba1.up.railway.app/api/crons/formation-transition"
+# ✅ 401 — Missing/wrong Authorization: Bearer <CRON_SECRET>
+```
+
+### 59. POST Cron Unknown Job → 404
+
+```bash
+curl -s -o /dev/null -w "%{http_code}" -X POST -H "Authorization: Bearer test" "https://backend-production-2ba1.up.railway.app/api/crons/unknown-job"
+# ✅ 404 — Unknown job name
+```
+
+### 60. GET Cancel Info (active challenge)
+
+```bash
+curl -s "https://backend-production-2ba1.up.railway.app/api/challenges/f79aacef-8b1e-469d-b99c-afcba004f02a/cancel"
+# ✅ 200 { "challenge_id": "f79aacef-...", "title": "Wake Up at 6AM", "status": "active", "can_cancel": true, "end_reason": null, "final_stats": null }
+```
+
+### 61. POST Cancel by Non-Host → 403
+
+```bash
+curl -s -o /dev/null -w "%{http_code}" -X POST "https://backend-production-2ba1.up.railway.app/api/challenges/f79aacef-8b1e-469d-b99c-afcba004f02a/cancel?user_id=e30d4258-a336-4dcb-9534-7c753e765db7"
+# ✅ 403 — Only the host (creator) can cancel
+```
+
+### 62. POST Cancel Non-Active Challenge → 409
+
+```bash
+curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/challenges/fcdd1c90-f8d1-4055-b32f-739d3e5f75fb/cancel?user_id=b2e8239e-edb6-4a92-9482-9df5afc1e0ec"
+# ✅ 409 { "error": "Cannot cancel challenge with status 'completed'. Only active challenges can be cancelled." }
+```
+
+### 63. POST Cancel Active Challenge (Host) → 200
+
+```bash
+curl -s -X POST "https://backend-production-2ba1.up.railway.app/api/challenges/f79aacef-8b1e-469d-b99c-afcba004f02a/cancel?user_id=9065e038-3ebf-411f-af59-d64e12259533"
+# ✅ 200 { "challenge_id": "f79aacef-...", "status": "cancelled", "end_reason": "host_cancelled" }
+```
+
+### 64. GET Cancel Info (after cancellation)
+
+```bash
+curl -s "https://backend-production-2ba1.up.railway.app/api/challenges/f79aacef-8b1e-469d-b99c-afcba004f02a/cancel"
+# ✅ 200 { "status": "cancelled", "end_reason": "host_cancelled", "can_cancel": false }
+```
+
+> **Note**: POST cron execution endpoints (`formation-transition`, `heart-deduction`) require the `CRON_SECRET` env var as Bearer token. These are designed for Railway cron job scheduling, not browser testing. Use GET to inspect job info instead.
+
+---
+
 ## API Documentation
 
-### 56. OpenAPI JSON
+### 65. OpenAPI JSON
 
 ```bash
 curl -s "https://backend-production-2ba1.up.railway.app/api/docs" | head -c 200
-# ✅ 200 — Returns full OpenAPI 3.0.3 spec (v0.6.0) with Check-in endpoints
+# ✅ 200 — Returns full OpenAPI 3.0.3 spec (v0.7.0) with Cron & Cancel endpoints
 ```
 
-### 57. Swagger UI
+### 66. Swagger UI
 
 ```bash
 curl -s -o /dev/null -w "%{http_code}" "https://backend-production-2ba1.up.railway.app/api/docs/ui"
@@ -648,8 +717,8 @@ curl -s -o /dev/null -w "%{http_code}" "https://backend-production-2ba1.up.railw
 ## Test Results
 
 ```
-Test Suites: 10 passed, 10 total
-Tests:       143 passed, 2 skipped, 145 total
+Test Suites: 11 passed, 11 total
+Tests:       164 passed, 2 skipped, 166 total
 
   src/__tests__/lib/config.test.ts               ✅ Environment validation
   src/__tests__/lib/db.test.ts                   ✅ Database connection
@@ -661,6 +730,7 @@ Tests:       143 passed, 2 skipped, 145 total
   src/__tests__/api/challenges.test.ts           ✅ Challenges CRUD (18 tests)
   src/__tests__/api/challenges-formation.test.ts ✅ Formation lifecycle (27 tests)
   src/__tests__/api/challenges-checkin.test.ts   ✅ Check-in system (19 tests)
+  src/__tests__/api/crons.test.ts                ✅ Cron jobs & cancel (21 tests)
 ```
 
 ---
@@ -728,4 +798,18 @@ curl -s "$BASE/api/challenges/$CH/stats"
 
 echo "\n=== Nudge history ==="
 curl -s "$BASE/api/challenges/$CH/nudge/$BOB"
+
+echo "\n=== Cron info (formation) ==="
+curl -s "$BASE/api/crons/formation-transition"
+
+echo "\n=== Cron info (heart-deduction) ==="
+curl -s "$BASE/api/crons/heart-deduction"
+
+echo "\n=== Cancel info ==="
+curl -s "$BASE/api/challenges/$CH/cancel"
+
+echo "\n=== Docs ==="
+curl -s -o /dev/null -w "OpenAPI: %{http_code}" "$BASE/api/docs"
+echo ""
+curl -s -o /dev/null -w "Swagger UI: %{http_code}" "$BASE/api/docs/ui"
 ```
