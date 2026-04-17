@@ -1,339 +1,1517 @@
 {
-  "openapi": "3.0.3",
-  "info": {
-    "title": "SOS App — Backend API",
-    "version": "0.3.0",
-    "description": "Snap or Slap challenge app. Sprint 3: Friends & Social System. All endpoints return JSON. No auth — use ?user_id=UUID."
-  },
-  "servers": [
-    { "url": "https://backend-production-2ba1.up.railway.app", "description": "Railway Production" },
-    { "url": "http://localhost:3000", "description": "Local Development" }
-  ],
-  "paths": {
-    "/api/health": {
-      "get": {
-        "tags": ["System"],
-        "summary": "Health check",
-        "description": "Returns server status and uptime. No auth required.",
-        "responses": {
-          "200": {
-            "description": "Server is healthy",
-            "content": { "application/json": { "schema": { "type": "object", "properties": { "status": { "type": "string", "example": "ok" }, "uptime": { "type": "number", "example": 123.45 } } } } }
-          }
-        }
-      }
-    },
-    "/api/auth/register": {
-      "post": {
-        "tags": ["Auth"],
-        "summary": "Register new user",
-        "description": "Create account with email, password, username. Returns JWT tokens.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["email", "password", "username", "terms_agreed"],
-                "properties": {
-                  "email": { "type": "string", "format": "email", "example": "user@example.com" },
-                  "password": { "type": "string", "minLength": 8, "example": "MyPass123!" },
-                  "username": { "type": "string", "minLength": 4, "maxLength": 20, "pattern": "^[a-zA-Z0-9_]+$", "example": "cool_user" },
-                  "terms_agreed": { "type": "boolean", "example": true }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": { "description": "User created, tokens returned" },
-          "400": { "description": "Validation error" },
-          "409": { "description": "Email or username already taken" }
-        }
-      }
-    },
-    "/api/auth/login": {
-      "post": {
-        "tags": ["Auth"],
-        "summary": "Sign in",
-        "description": "Authenticate with email + password. Returns JWT tokens.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["email", "password"],
-                "properties": {
-                  "email": { "type": "string", "format": "email", "example": "user@example.com" },
-                  "password": { "type": "string", "example": "MyPass123!" }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": { "description": "Login successful, tokens returned" },
-          "400": { "description": "Validation error" },
-          "401": { "description": "Invalid credentials" },
-          "403": { "description": "Account disabled" }
-        }
-      }
-    },
-    "/api/auth/check-username": {
-      "get": {
-        "tags": ["Auth"],
-        "summary": "Check username availability",
-        "description": "Check if a username is available. No auth required. Test in browser: /api/auth/check-username?username=cool_user",
-        "parameters": [
-          {
-            "name": "username",
-            "in": "query",
-            "required": true,
-            "schema": { "type": "string", "minLength": 4, "example": "cool_user" }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Username availability",
-            "content": { "application/json": { "schema": { "type": "object", "properties": { "available": { "type": "boolean" } } } } }
-          },
-          "400": { "description": "Invalid username format" }
-        }
-      }
-    },
-    "/api/auth/refresh": {
-      "post": {
-        "tags": ["Auth"],
-        "summary": "Refresh access token",
-        "description": "Exchange refresh_token for new access_token. Old refresh_token is revoked (rotation).",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["refresh_token"],
-                "properties": {
-                  "refresh_token": { "type": "string", "example": "your-refresh-token-here" }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": { "description": "New token pair" },
-          "400": { "description": "Missing refresh_token" },
-          "401": { "description": "Invalid/expired/revoked token" }
-        }
-      }
-    },
-    "/api/auth/signout": {
-      "post": {
-        "tags": ["Auth"],
-        "summary": "Sign out",
-        "description": "Revoke refresh token. Access token expires naturally (15min).",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["refresh_token"],
-                "properties": {
-                  "refresh_token": { "type": "string" }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": { "description": "Signed out successfully" },
-          "400": { "description": "Missing refresh_token" }
-        }
-      }
-    },
-    "/api/users/me": {
-      "get": {
-        "tags": ["Users"],
-        "summary": "Get user profile",
-        "description": "Get profile by user_id query param. Test in browser: /api/users/me?user_id=UUID",
-        "parameters": [
-          {
-            "name": "user_id",
-            "in": "query",
-            "required": true,
-            "schema": { "type": "string", "format": "uuid" },
-            "description": "User UUID"
-          }
-        ],
-        "responses": {
-          "200": { "description": "User profile" },
-          "400": { "description": "Missing user_id" },
-          "404": { "description": "User not found" }
-        }
-      },
-      "patch": {
-        "tags": ["Users"],
-        "summary": "Update user profile",
-        "description": "Update display_name, bio, is_private. Requires user_id query param.",
-        "parameters": [
-          {
-            "name": "user_id",
-            "in": "query",
-            "required": true,
-            "schema": { "type": "string", "format": "uuid" }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "displayName": { "type": "string", "maxLength": 50, "example": "Cool User" },
-                  "bio": { "type": "string", "maxLength": 200, "example": "Living the grind" },
-                  "isPrivate": { "type": "boolean", "example": false }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": { "description": "Updated profile" },
-          "400": { "description": "Validation error" },
-          "404": { "description": "User not found" }
-        }
-      }
-    },
-    "/api/test-data": {
-      "get": {
-        "tags": ["System"],
-        "summary": "View all test data",
-        "description": "Returns all users, challenges, members, checkins from the database. Test in browser.",
-        "responses": {
-          "200": { "description": "All test data" },
-          "500": { "description": "Database error" }
-        }
-      }
-    },
-    "/api/users/search": {
-      "get": {
-        "tags": ["Friends & Social"],
-        "summary": "Search users",
-        "description": "Search users by username prefix. Test: /api/users/search?q=maya&user_id=YOUR_UUID",
-        "parameters": [
-          { "name": "q", "in": "query", "required": true, "schema": { "type": "string", "minLength": 2 }, "description": "Username prefix (min 2 chars)" },
-          { "name": "user_id", "in": "query", "required": false, "schema": { "type": "string", "format": "uuid" }, "description": "Exclude self from results" }
-        ],
-        "responses": {
-          "200": { "description": "List of matching users", "content": { "application/json": { "schema": { "type": "object", "properties": { "users": { "type": "array", "items": { "type": "object", "properties": { "id": { "type": "string" }, "username": { "type": "string" }, "display_name": { "type": "string" }, "avatar_url": { "type": "string" }, "is_private": { "type": "boolean" } } } } } } } } },
-          "400": { "description": "Query too short" }
-        }
-      }
-    },
-    "/api/friends": {
-      "get": {
-        "tags": ["Friends & Social"],
-        "summary": "Get friends list",
-        "description": "Paginated list of accepted friends. Test: /api/friends?user_id=UUID",
-        "parameters": [
-          { "name": "user_id", "in": "query", "required": true, "schema": { "type": "string", "format": "uuid" } },
-          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
-          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20, "maximum": 50 } }
-        ],
-        "responses": {
-          "200": { "description": "Friends list with pagination", "content": { "application/json": { "schema": { "type": "object", "properties": { "friends": { "type": "array" }, "total": { "type": "integer" }, "page": { "type": "integer" }, "limit": { "type": "integer" } } } } } },
-          "400": { "description": "Missing user_id" }
-        }
-      }
-    },
-    "/api/friends/request": {
-      "post": {
-        "tags": ["Friends & Social"],
-        "summary": "Send friend request",
-        "description": "Send a friend request to another user.",
-        "parameters": [
-          { "name": "user_id", "in": "query", "required": true, "schema": { "type": "string", "format": "uuid" }, "description": "Sender user ID" }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": { "application/json": { "schema": { "type": "object", "required": ["receiver_id"], "properties": { "receiver_id": { "type": "string", "format": "uuid" } } } } }
-        },
-        "responses": {
-          "201": { "description": "Friend request created" },
-          "400": { "description": "Validation error or self-request" },
-          "404": { "description": "Receiver not found" },
-          "409": { "description": "Already friends or request already sent" }
-        }
-      }
-    },
-    "/api/friends/request/{requestId}/respond": {
-      "put": {
-        "tags": ["Friends & Social"],
-        "summary": "Accept or decline friend request",
-        "description": "Respond to an incoming friend request.",
-        "parameters": [
-          { "name": "requestId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
-          { "name": "user_id", "in": "query", "required": true, "schema": { "type": "string", "format": "uuid" }, "description": "Receiver user ID" }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": { "application/json": { "schema": { "type": "object", "required": ["action"], "properties": { "action": { "type": "string", "enum": ["accept", "decline"] } } } } }
-        },
-        "responses": {
-          "200": { "description": "Request accepted/declined" },
-          "400": { "description": "Invalid action" },
-          "403": { "description": "Not the receiver" },
-          "404": { "description": "Request not found" },
-          "409": { "description": "Already processed" }
-        }
-      }
-    },
-    "/api/friends/requests/pending": {
-      "get": {
-        "tags": ["Friends & Social"],
-        "summary": "Get pending friend requests",
-        "description": "Incoming pending requests. Test: /api/friends/requests/pending?user_id=UUID",
-        "parameters": [
-          { "name": "user_id", "in": "query", "required": true, "schema": { "type": "string", "format": "uuid" } }
-        ],
-        "responses": {
-          "200": { "description": "Pending requests with sender info", "content": { "application/json": { "schema": { "type": "object", "properties": { "requests": { "type": "array", "items": { "type": "object", "properties": { "id": { "type": "string" }, "sender": { "type": "object", "properties": { "id": { "type": "string" }, "username": { "type": "string" }, "display_name": { "type": "string" }, "avatar_url": { "type": "string" } } }, "created_at": { "type": "string" } } } } } } } } },
-          "400": { "description": "Missing user_id" }
-        }
-      }
-    },
-    "/api/friends/{friendUserId}": {
-      "delete": {
-        "tags": ["Friends & Social"],
-        "summary": "Unfriend a user",
-        "description": "Remove an existing friendship.",
-        "parameters": [
-          { "name": "friendUserId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
-          { "name": "user_id", "in": "query", "required": true, "schema": { "type": "string", "format": "uuid" } }
-        ],
-        "responses": {
-          "200": { "description": "Unfriended successfully" },
-          "400": { "description": "Missing user_id" },
-          "404": { "description": "Not friends" }
-        }
-      }
-    },
-    "/api/users/{userId}/profile": {
-      "get": {
-        "tags": ["Friends & Social"],
-        "summary": "Get user profile with privacy",
-        "description": "Privacy-aware profile. Friends see full data; strangers see limited info. Test: /api/users/TARGET_UUID/profile?user_id=YOUR_UUID",
-        "parameters": [
-          { "name": "userId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" }, "description": "Target user ID" },
-          { "name": "user_id", "in": "query", "required": false, "schema": { "type": "string", "format": "uuid" }, "description": "Current viewer ID" }
-        ],
-        "responses": {
-          "200": { "description": "User profile with relationship-based data", "content": { "application/json": { "schema": { "type": "object", "properties": { "user": { "type": "object" }, "relationship": { "type": "string", "enum": ["self", "friend", "pending_sent", "pending_received", "squadmate", "none"] }, "stats": { "type": "object", "nullable": true }, "badges": { "type": "array", "nullable": true }, "latest_activities": { "type": "array", "nullable": true } } } } } },
-          "404": { "description": "User not found" }
-        }
-      }
-    }
-  }
+	"openapi": "3.0.3",
+	"info": {
+		"title": "SOS App — Backend API",
+		"version": "0.4.0",
+		"description": "Snap or Slap challenge app. Sprint 4: Challenges CRUD + Friends & Social System. All endpoints return JSON. No auth — use ?user_id=UUID.\n\nTest accounts: alice@example.com / bob@example.com / charlie@example.com (password: Password123!)"
+	},
+	"servers": [
+		{
+			"url": "https://backend-production-2ba1.up.railway.app",
+			"description": "Railway Production"
+		},
+		{
+			"url": "http://localhost:3000",
+			"description": "Local Development"
+		}
+	],
+	"paths": {
+		"/api/health": {
+			"get": {
+				"tags": [
+					"System"
+				],
+				"summary": "Health check",
+				"description": "Returns server status and uptime. No auth required.",
+				"responses": {
+					"200": {
+						"description": "Server is healthy",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"status": {
+											"type": "string",
+											"example": "ok"
+										},
+										"uptime": {
+											"type": "number",
+											"example": 123.45
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/api/auth/register": {
+			"post": {
+				"tags": [
+					"Auth"
+				],
+				"summary": "Register new user",
+				"description": "Create account with email, password, username. Returns JWT tokens.",
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"required": [
+									"email",
+									"password",
+									"username",
+									"terms_agreed"
+								],
+								"properties": {
+									"email": {
+										"type": "string",
+										"format": "email",
+										"example": "user@example.com"
+									},
+									"password": {
+										"type": "string",
+										"minLength": 8,
+										"example": "MyPass123!"
+									},
+									"username": {
+										"type": "string",
+										"minLength": 4,
+										"maxLength": 20,
+										"pattern": "^[a-zA-Z0-9_]+$",
+										"example": "cool_user"
+									},
+									"terms_agreed": {
+										"type": "boolean",
+										"example": true
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "User created, tokens returned"
+					},
+					"400": {
+						"description": "Validation error"
+					},
+					"409": {
+						"description": "Email or username already taken"
+					}
+				}
+			}
+		},
+		"/api/auth/login": {
+			"post": {
+				"tags": [
+					"Auth"
+				],
+				"summary": "Sign in",
+				"description": "Authenticate with email + password. Returns JWT tokens.",
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"required": [
+									"email",
+									"password"
+								],
+								"properties": {
+									"email": {
+										"type": "string",
+										"format": "email",
+										"example": "user@example.com"
+									},
+									"password": {
+										"type": "string",
+										"example": "MyPass123!"
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Login successful, tokens returned"
+					},
+					"400": {
+						"description": "Validation error"
+					},
+					"401": {
+						"description": "Invalid credentials"
+					},
+					"403": {
+						"description": "Account disabled"
+					}
+				}
+			}
+		},
+		"/api/auth/check-username": {
+			"get": {
+				"tags": [
+					"Auth"
+				],
+				"summary": "Check username availability",
+				"description": "Check if a username is available. No auth required. Test in browser: /api/auth/check-username?username=cool_user",
+				"parameters": [
+					{
+						"name": "username",
+						"in": "query",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"minLength": 4,
+							"example": "cool_user"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Username availability",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"available": {
+											"type": "boolean"
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Invalid username format"
+					}
+				}
+			}
+		},
+		"/api/auth/refresh": {
+			"post": {
+				"tags": [
+					"Auth"
+				],
+				"summary": "Refresh access token",
+				"description": "Exchange refresh_token for new access_token. Old refresh_token is revoked (rotation).",
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"required": [
+									"refresh_token"
+								],
+								"properties": {
+									"refresh_token": {
+										"type": "string",
+										"example": "your-refresh-token-here"
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "New token pair"
+					},
+					"400": {
+						"description": "Missing refresh_token"
+					},
+					"401": {
+						"description": "Invalid/expired/revoked token"
+					}
+				}
+			}
+		},
+		"/api/auth/signout": {
+			"post": {
+				"tags": [
+					"Auth"
+				],
+				"summary": "Sign out",
+				"description": "Revoke refresh token. Access token expires naturally (15min).",
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"required": [
+									"refresh_token"
+								],
+								"properties": {
+									"refresh_token": {
+										"type": "string"
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Signed out successfully"
+					},
+					"400": {
+						"description": "Missing refresh_token"
+					}
+				}
+			}
+		},
+		"/api/users/me": {
+			"get": {
+				"tags": [
+					"Users"
+				],
+				"summary": "Get user profile",
+				"description": "Get profile by user_id query param. Test in browser: /api/users/me?user_id=UUID",
+				"parameters": [
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "User UUID"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "User profile"
+					},
+					"400": {
+						"description": "Missing user_id"
+					},
+					"404": {
+						"description": "User not found"
+					}
+				}
+			},
+			"patch": {
+				"tags": [
+					"Users"
+				],
+				"summary": "Update user profile",
+				"description": "Update display_name, bio, is_private. Requires user_id query param.",
+				"parameters": [
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"displayName": {
+										"type": "string",
+										"maxLength": 50,
+										"example": "Cool User"
+									},
+									"bio": {
+										"type": "string",
+										"maxLength": 200,
+										"example": "Living the grind"
+									},
+									"isPrivate": {
+										"type": "boolean",
+										"example": false
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Updated profile"
+					},
+					"400": {
+						"description": "Validation error"
+					},
+					"404": {
+						"description": "User not found"
+					}
+				}
+			}
+		},
+		"/api/test-data": {
+			"get": {
+				"tags": [
+					"System"
+				],
+				"summary": "View all test data",
+				"description": "Returns all users, challenges, members, checkins from the database. Test in browser.",
+				"responses": {
+					"200": {
+						"description": "All test data"
+					},
+					"500": {
+						"description": "Database error"
+					}
+				}
+			}
+		},
+		"/api/users/search": {
+			"get": {
+				"tags": [
+					"Friends & Social"
+				],
+				"summary": "Search users",
+				"description": "Search users by username prefix. Test: /api/users/search?q=maya&user_id=YOUR_UUID",
+				"parameters": [
+					{
+						"name": "q",
+						"in": "query",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"minLength": 2
+						},
+						"description": "Username prefix (min 2 chars)"
+					},
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Exclude self from results"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "List of matching users",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"users": {
+											"type": "array",
+											"items": {
+												"type": "object",
+												"properties": {
+													"id": {
+														"type": "string"
+													},
+													"username": {
+														"type": "string"
+													},
+													"display_name": {
+														"type": "string"
+													},
+													"avatar_url": {
+														"type": "string"
+													},
+													"is_private": {
+														"type": "boolean"
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Query too short"
+					}
+				}
+			}
+		},
+		"/api/friends": {
+			"get": {
+				"tags": [
+					"Friends & Social"
+				],
+				"summary": "Get friends list",
+				"description": "Paginated list of accepted friends. Test: /api/friends?user_id=UUID",
+				"parameters": [
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
+					},
+					{
+						"name": "page",
+						"in": "query",
+						"schema": {
+							"type": "integer",
+							"default": 1
+						}
+					},
+					{
+						"name": "limit",
+						"in": "query",
+						"schema": {
+							"type": "integer",
+							"default": 20,
+							"maximum": 50
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Friends list with pagination",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"friends": {
+											"type": "array"
+										},
+										"total": {
+											"type": "integer"
+										},
+										"page": {
+											"type": "integer"
+										},
+										"limit": {
+											"type": "integer"
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Missing user_id"
+					}
+				}
+			}
+		},
+		"/api/friends/request": {
+			"post": {
+				"tags": [
+					"Friends & Social"
+				],
+				"summary": "Send friend request",
+				"description": "Send a friend request to another user.",
+				"parameters": [
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Sender user ID"
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"required": [
+									"receiver_id"
+								],
+								"properties": {
+									"receiver_id": {
+										"type": "string",
+										"format": "uuid"
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "Friend request created"
+					},
+					"400": {
+						"description": "Validation error or self-request"
+					},
+					"404": {
+						"description": "Receiver not found"
+					},
+					"409": {
+						"description": "Already friends or request already sent"
+					}
+				}
+			}
+		},
+		"/api/friends/request/{requestId}/respond": {
+			"put": {
+				"tags": [
+					"Friends & Social"
+				],
+				"summary": "Accept or decline friend request",
+				"description": "Respond to an incoming friend request.",
+				"parameters": [
+					{
+						"name": "requestId",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
+					},
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Receiver user ID"
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"required": [
+									"action"
+								],
+								"properties": {
+									"action": {
+										"type": "string",
+										"enum": [
+											"accept",
+											"decline"
+										]
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Request accepted/declined"
+					},
+					"400": {
+						"description": "Invalid action"
+					},
+					"403": {
+						"description": "Not the receiver"
+					},
+					"404": {
+						"description": "Request not found"
+					},
+					"409": {
+						"description": "Already processed"
+					}
+				}
+			}
+		},
+		"/api/friends/requests/pending": {
+			"get": {
+				"tags": [
+					"Friends & Social"
+				],
+				"summary": "Get pending friend requests",
+				"description": "Incoming pending requests. Test: /api/friends/requests/pending?user_id=UUID",
+				"parameters": [
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Pending requests with sender info",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"requests": {
+											"type": "array",
+											"items": {
+												"type": "object",
+												"properties": {
+													"id": {
+														"type": "string"
+													},
+													"sender": {
+														"type": "object",
+														"properties": {
+															"id": {
+																"type": "string"
+															},
+															"username": {
+																"type": "string"
+															},
+															"display_name": {
+																"type": "string"
+															},
+															"avatar_url": {
+																"type": "string"
+															}
+														}
+													},
+													"created_at": {
+														"type": "string"
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Missing user_id"
+					}
+				}
+			}
+		},
+		"/api/friends/{friendUserId}": {
+			"delete": {
+				"tags": [
+					"Friends & Social"
+				],
+				"summary": "Unfriend a user",
+				"description": "Remove an existing friendship.",
+				"parameters": [
+					{
+						"name": "friendUserId",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
+					},
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Unfriended successfully"
+					},
+					"400": {
+						"description": "Missing user_id"
+					},
+					"404": {
+						"description": "Not friends"
+					}
+				}
+			}
+		},
+		"/api/users/{userId}/profile": {
+			"get": {
+				"tags": [
+					"Friends & Social"
+				],
+				"summary": "Get user profile with privacy",
+				"description": "Privacy-aware profile. Friends see full data; strangers see limited info. Test: /api/users/TARGET_UUID/profile?user_id=YOUR_UUID",
+				"parameters": [
+					{
+						"name": "userId",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Target user ID"
+					},
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Current viewer ID"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "User profile with relationship-based data",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"user": {
+											"type": "object"
+										},
+										"relationship": {
+											"type": "string",
+											"enum": [
+												"self",
+												"friend",
+												"pending_sent",
+												"pending_received",
+												"squadmate",
+												"none"
+											]
+										},
+										"stats": {
+											"type": "object",
+											"nullable": true
+										},
+										"badges": {
+											"type": "array",
+											"nullable": true
+										},
+										"latest_activities": {
+											"type": "array",
+											"nullable": true
+										}
+									}
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "User not found"
+					}
+				}
+			}
+		},
+		"/api/challenges": {
+			"get": {
+				"tags": [
+					"Challenges (CRUD)"
+				],
+				"summary": "List my challenges",
+				"operationId": "listChallenges",
+				"description": "Get paginated list of challenges the user has joined. Supports status filter.\n\nTest: /api/challenges?user_id=ALICE_UUID&status=active",
+				"parameters": [
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Current user ID"
+					},
+					{
+						"name": "status",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"formation",
+								"active",
+								"completed",
+								"failed",
+								"cancelled"
+							]
+						},
+						"description": "Filter by challenge status"
+					},
+					{
+						"name": "page",
+						"in": "query",
+						"schema": {
+							"type": "integer",
+							"default": 1
+						}
+					},
+					{
+						"name": "limit",
+						"in": "query",
+						"schema": {
+							"type": "integer",
+							"default": 20,
+							"maximum": 50
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Paginated challenge list",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"challenges": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/ChallengeSummary"
+											}
+										},
+										"total": {
+											"type": "integer",
+											"example": 3
+										},
+										"page": {
+											"type": "integer",
+											"example": 1
+										},
+										"limit": {
+											"type": "integer",
+											"example": 20
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Missing user_id",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"tags": [
+					"Challenges (CRUD)"
+				],
+				"summary": "Create a new challenge",
+				"operationId": "createChallenge",
+				"description": "Create a challenge. Creator becomes the host automatically. Challenge starts in 'formation' status.",
+				"parameters": [
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Creator user ID"
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateChallengeDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "Challenge created",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"challenge": {
+											"$ref": "#/components/schemas/Challenge"
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Validation error",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationError"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "User not found"
+					}
+				}
+			}
+		},
+		"/api/challenges/{id}": {
+			"get": {
+				"tags": [
+					"Challenges (CRUD)"
+				],
+				"summary": "Get challenge details",
+				"operationId": "getChallenge",
+				"description": "Get full challenge info including members list. If user_id provided, also returns the viewer's membership info.",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Challenge ID"
+					},
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Current viewer ID (optional, to get my_membership)"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Challenge with members",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"challenge": {
+											"$ref": "#/components/schemas/Challenge"
+										},
+										"members": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/ChallengeMember"
+											}
+										},
+										"my_membership": {
+											"nullable": true,
+											"type": "object",
+											"properties": {
+												"role": {
+													"type": "string",
+													"enum": [
+														"host",
+														"member"
+													]
+												},
+												"status": {
+													"type": "string",
+													"enum": [
+														"invited",
+														"accepted",
+														"declined"
+													]
+												},
+												"is_ready": {
+													"type": "boolean"
+												},
+												"current_step": {
+													"type": "integer"
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Challenge not found"
+					}
+				}
+			},
+			"patch": {
+				"tags": [
+					"Challenges (CRUD)"
+				],
+				"summary": "Update challenge",
+				"operationId": "updateChallenge",
+				"description": "Update challenge settings. Only the host can edit, and only while status is 'formation'.",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
+					},
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Must be the host"
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateChallengeDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Challenge updated",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"challenge": {
+											"$ref": "#/components/schemas/Challenge"
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Validation error or challenge not in formation"
+					},
+					"404": {
+						"description": "Challenge not found or not the host"
+					}
+				}
+			},
+			"delete": {
+				"tags": [
+					"Challenges (CRUD)"
+				],
+				"summary": "Delete or cancel challenge",
+				"operationId": "deleteChallenge",
+				"description": "Delete a formation challenge or cancel an active challenge. Only the host can perform this action. Completed/failed challenges cannot be deleted.",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
+					},
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Must be the host"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Challenge deleted or cancelled",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"message": {
+											"type": "string",
+											"example": "Challenge deleted"
+										},
+										"id": {
+											"type": "string",
+											"format": "uuid"
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Cannot delete completed/failed challenges"
+					},
+					"404": {
+						"description": "Challenge not found or not the host"
+					}
+				}
+			}
+		}
+	},
+	"components": {
+		"schemas": {
+			"CreateChallengeDto": {
+				"type": "object",
+				"required": [
+					"title",
+					"durationDays",
+					"frequency"
+				],
+				"properties": {
+					"title": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 100,
+						"example": "Wake Up at 6AM"
+					},
+					"description": {
+						"type": "string",
+						"maxLength": 500,
+						"example": "30 days of waking up early! Snap a photo of your alarm clock."
+					},
+					"durationDays": {
+						"type": "integer",
+						"minimum": 1,
+						"maximum": 365,
+						"example": 30
+					},
+					"frequency": {
+						"type": "string",
+						"enum": [
+							"daily",
+							"custom"
+						],
+						"example": "daily"
+					},
+					"frequencyDays": {
+						"type": "array",
+						"items": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 6
+						},
+						"description": "Required when frequency=custom. 0=Sun, 6=Sat",
+						"example": [
+							1,
+							3,
+							5
+						]
+					},
+					"resetTime": {
+						"type": "string",
+						"pattern": "^\\d{2}:\\d{2}$",
+						"default": "00:00",
+						"example": "06:00"
+					},
+					"totalHearts": {
+						"type": "integer",
+						"minimum": 1,
+						"maximum": 99,
+						"default": 3,
+						"example": 3
+					},
+					"maxMembers": {
+						"type": "integer",
+						"minimum": 2,
+						"maximum": 50,
+						"default": 10,
+						"example": 10
+					},
+					"isPrivate": {
+						"type": "boolean",
+						"default": false,
+						"example": false
+					}
+				}
+			},
+			"UpdateChallengeDto": {
+				"type": "object",
+				"description": "All fields optional. Only allowed when challenge status is 'formation'.",
+				"properties": {
+					"title": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 100,
+						"example": "Wake Up at 5:30AM"
+					},
+					"description": {
+						"type": "string",
+						"maxLength": 500
+					},
+					"durationDays": {
+						"type": "integer",
+						"minimum": 1,
+						"maximum": 365
+					},
+					"frequency": {
+						"type": "string",
+						"enum": [
+							"daily",
+							"custom"
+						]
+					},
+					"totalHearts": {
+						"type": "integer",
+						"minimum": 1,
+						"maximum": 99
+					},
+					"maxMembers": {
+						"type": "integer",
+						"minimum": 2,
+						"maximum": 50
+					},
+					"isPrivate": {
+						"type": "boolean"
+					}
+				}
+			},
+			"Challenge": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"format": "uuid"
+					},
+					"title": {
+						"type": "string",
+						"example": "Wake Up at 6AM"
+					},
+					"description": {
+						"type": "string",
+						"example": "30 days of waking up early!"
+					},
+					"cover_url": {
+						"type": "string",
+						"nullable": true
+					},
+					"creator_id": {
+						"type": "string",
+						"format": "uuid"
+					},
+					"duration_days": {
+						"type": "integer",
+						"example": 30
+					},
+					"frequency": {
+						"type": "string",
+						"enum": [
+							"daily",
+							"custom"
+						]
+					},
+					"reset_time": {
+						"type": "string",
+						"example": "06:00:00"
+					},
+					"total_hearts": {
+						"type": "integer",
+						"example": 3
+					},
+					"hearts_left": {
+						"type": "integer",
+						"example": 3
+					},
+					"max_members": {
+						"type": "integer",
+						"example": 10
+					},
+					"is_private": {
+						"type": "boolean"
+					},
+					"status": {
+						"type": "string",
+						"enum": [
+							"formation",
+							"active",
+							"completed",
+							"failed",
+							"cancelled"
+						]
+					},
+					"current_step": {
+						"type": "integer"
+					},
+					"start_at": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true
+					},
+					"created_at": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"updated_at": {
+						"type": "string",
+						"format": "date-time"
+					}
+				}
+			},
+			"ChallengeSummary": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"format": "uuid"
+					},
+					"title": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string",
+						"enum": [
+							"formation",
+							"active",
+							"completed",
+							"failed",
+							"cancelled"
+						]
+					},
+					"duration_days": {
+						"type": "integer"
+					},
+					"total_hearts": {
+						"type": "integer"
+					},
+					"hearts_left": {
+						"type": "integer"
+					},
+					"member_count": {
+						"type": "integer"
+					},
+					"my_role": {
+						"type": "string",
+						"enum": [
+							"host",
+							"member"
+						]
+					},
+					"creator_username": {
+						"type": "string"
+					},
+					"creator_display_name": {
+						"type": "string"
+					},
+					"start_at": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true
+					},
+					"created_at": {
+						"type": "string",
+						"format": "date-time"
+					}
+				}
+			},
+			"ChallengeMember": {
+				"type": "object",
+				"properties": {
+					"user_id": {
+						"type": "string",
+						"format": "uuid"
+					},
+					"username": {
+						"type": "string"
+					},
+					"display_name": {
+						"type": "string"
+					},
+					"avatar_url": {
+						"type": "string",
+						"nullable": true
+					},
+					"role": {
+						"type": "string",
+						"enum": [
+							"host",
+							"member"
+						]
+					},
+					"status": {
+						"type": "string",
+						"enum": [
+							"invited",
+							"accepted",
+							"declined"
+						]
+					},
+					"is_ready": {
+						"type": "boolean"
+					},
+					"current_step": {
+						"type": "integer"
+					},
+					"joined_at": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true
+					}
+				}
+			},
+			"Error": {
+				"type": "object",
+				"properties": {
+					"error": {
+						"type": "string",
+						"example": "user_id query param is required"
+					}
+				}
+			},
+			"ValidationError": {
+				"type": "object",
+				"properties": {
+					"error": {
+						"type": "string",
+						"example": "Validation failed"
+					},
+					"details": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"field": {
+									"type": "string",
+									"example": "title"
+								},
+								"message": {
+									"type": "string",
+									"example": "Title is required"
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 }
