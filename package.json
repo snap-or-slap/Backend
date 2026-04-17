@@ -6,19 +6,33 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "db:migrate": "node -r ts-node/register src/lib/db/migrate.ts"
   },
   "dependencies": {
+    "bcrypt": "^6.0.0",
+    "jsonwebtoken": "^9.0.3",
     "next": "15.5.15",
+    "pg": "^8.20.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
+    "@types/jest": "^30.0.0",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "typescript": "^5",
     "eslint": "^9",
-    "eslint-config-next": "15.5.15"
+    "eslint-config-next": "15.5.15",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.9",
+    "ts-node": "^10.9.2",
+    "typescript": "^5"
   }
 }
