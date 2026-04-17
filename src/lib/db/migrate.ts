@@ -44,7 +44,25 @@ async function migrate() {
 
 			const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf-8');
 			console.log(`▶  Applying: ${file}`);
-			await pool.query(sql);
+
+			// ALTER TYPE ADD VALUE cannot run inside a transaction block.
+			// For migrations containing this, execute each statement individually.
+			if (sql.includes('ALTER TYPE') && sql.includes('ADD VALUE')) {
+				const statements = sql
+					.split(';')
+					.map((s) => s.trim())
+					.filter((s) => {
+						// Remove leading comment lines to check if there's actual SQL
+						const withoutComments = s.replace(/^(--[^\n]*\n\s*)*/g, '').trim();
+						return withoutComments.length > 0;
+					});
+				for (const stmt of statements) {
+					await pool.query(stmt);
+				}
+			} else {
+				await pool.query(sql);
+			}
+
 			await pool.query(
 				'INSERT INTO _migrations (name) VALUES ($1)',
 				[file]

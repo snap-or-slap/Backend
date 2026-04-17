@@ -82,3 +82,37 @@ export async function PATCH(req: NextRequest) {
 
   return NextResponse.json({ user: rows[0] });
 }
+
+export async function DELETE(req: NextRequest) {
+  const userId = new URL(req.url).searchParams.get('user_id');
+  if (!userId) {
+    return NextResponse.json({ error: 'user_id query param is required' }, { status: 400 });
+  }
+
+  // Soft delete: deactivate + anonymize
+  const { rows } = await query(
+    `UPDATE users SET
+       is_active = false,
+       email = 'deleted_' || id || '@deleted.local',
+       username = 'deleted_' || id,
+       display_name = 'Deleted User',
+       avatar_url = NULL,
+       bio = NULL,
+       updated_at = NOW()
+     WHERE id = $1 AND is_active = true
+     RETURNING id`,
+    [userId]
+  );
+
+  if (rows.length === 0) {
+    return NextResponse.json({ error: 'User not found or already deleted' }, { status: 404 });
+  }
+
+  // Revoke all refresh tokens
+  await query(
+    `UPDATE refresh_tokens SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL`,
+    [userId]
+  );
+
+  return NextResponse.json({ message: 'Account deleted successfully' });
+}

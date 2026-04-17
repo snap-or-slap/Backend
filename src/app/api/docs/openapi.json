@@ -2,8 +2,8 @@
 	"openapi": "3.0.3",
 	"info": {
 		"title": "SOS App — Backend API",
-		"version": "0.7.0",
-		"description": "Snap or Slap challenge app. Sprint 6: Cron Jobs & Automated Game Logic (formation transition, heart deduction, completion snapshot, cancel challenge). All endpoints return JSON. No auth — use ?user_id=UUID.\n\nTest accounts: alice@example.com / bob@example.com / charlie@example.com / diana@example.com / edward@example.com (password: Password123!)"
+		"version": "0.8.0",
+		"description": "Snap or Slap challenge app. Sprint 7: Profile & Gamification (user stats, badge system, activity feed, edit profile, settings, change password, delete account). All endpoints return JSON. No auth — use ?user_id=UUID.\n\nTest accounts: alice@example.com / bob@example.com / charlie@example.com / diana@example.com / edward@example.com (password: Password123!)"
 	},
 	"servers": [
 		{
@@ -2250,6 +2250,332 @@
 					}
 				}
 			}
+		},
+		"/api/users/me/profile": {
+			"get": {
+				"tags": [
+					"Profile & Gamification"
+				],
+				"summary": "Get full user profile",
+				"description": "Returns user info, stats, earned badges, locked badges, and recent activities. Browser-testable.",
+				"parameters": [
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "User ID"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Full profile data",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"user": {
+											"type": "object",
+											"properties": {
+												"id": { "type": "string", "format": "uuid" },
+												"email": { "type": "string" },
+												"username": { "type": "string" },
+												"display_name": { "type": "string", "nullable": true },
+												"avatar_url": { "type": "string", "nullable": true },
+												"bio": { "type": "string", "nullable": true },
+												"is_private": { "type": "boolean" },
+												"is_active": { "type": "boolean" },
+												"created_at": { "type": "string", "format": "date-time" }
+											}
+										},
+										"stats": { "$ref": "#/components/schemas/UserStats" },
+										"badges": {
+											"type": "array",
+											"items": { "$ref": "#/components/schemas/UserBadge" }
+										},
+										"badges_locked": {
+											"type": "array",
+											"items": { "$ref": "#/components/schemas/Badge" }
+										},
+										"recent_activities": {
+											"type": "array",
+											"items": { "$ref": "#/components/schemas/Activity" }
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": { "description": "Missing user_id" },
+					"404": { "description": "User not found" }
+				}
+			}
+		},
+		"/api/users/me/activities": {
+			"get": {
+				"tags": [
+					"Profile & Gamification"
+				],
+				"summary": "Get paginated activity feed",
+				"description": "Returns user activities with pagination. Optionally filter by type. Browser-testable.",
+				"parameters": [
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": true,
+						"schema": { "type": "string", "format": "uuid" }
+					},
+					{
+						"name": "page",
+						"in": "query",
+						"schema": { "type": "integer", "default": 1, "minimum": 1 }
+					},
+					{
+						"name": "limit",
+						"in": "query",
+						"schema": { "type": "integer", "default": 20, "minimum": 1, "maximum": 50 }
+					},
+					{
+						"name": "type",
+						"in": "query",
+						"schema": {
+							"type": "string",
+							"enum": ["challenge_joined", "challenge_completed", "friend_added", "badge_earned", "checkin_done"]
+						},
+						"description": "Filter by activity type"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Paginated activities",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"activities": {
+											"type": "array",
+											"items": { "$ref": "#/components/schemas/Activity" }
+										},
+										"pagination": {
+											"type": "object",
+											"properties": {
+												"page": { "type": "integer" },
+												"limit": { "type": "integer" },
+												"total": { "type": "integer" },
+												"total_pages": { "type": "integer" }
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": { "description": "Missing user_id" }
+				}
+			}
+		},
+		"/api/users/me/stats": {
+			"get": {
+				"tags": [
+					"Profile & Gamification"
+				],
+				"summary": "Get user stats",
+				"description": "Returns lightweight user statistics. Browser-testable.",
+				"parameters": [
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": true,
+						"schema": { "type": "string", "format": "uuid" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "User stats",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"stats": { "$ref": "#/components/schemas/UserStats" }
+									}
+								}
+							}
+						}
+					},
+					"400": { "description": "Missing user_id" }
+				}
+			}
+		},
+		"/api/users/me/stats/recalculate": {
+			"post": {
+				"tags": [
+					"Profile & Gamification"
+				],
+				"summary": "Recalculate user stats",
+				"description": "Forces recalculation of user stats from source data (checkins, challenges, streak). Upserts the user_stats row.",
+				"parameters": [
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": true,
+						"schema": { "type": "string", "format": "uuid" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Stats recalculated",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"stats": { "$ref": "#/components/schemas/UserStats" },
+										"message": { "type": "string" }
+									}
+								}
+							}
+						}
+					},
+					"400": { "description": "Missing user_id" }
+				}
+			}
+		},
+		"/api/users/me/settings": {
+			"put": {
+				"tags": [
+					"Profile & Gamification"
+				],
+				"summary": "Update privacy settings",
+				"description": "Update user privacy settings (is_private).",
+				"parameters": [
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": true,
+						"schema": { "type": "string", "format": "uuid" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"required": ["isPrivate"],
+								"properties": {
+									"isPrivate": { "type": "boolean", "example": true }
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Settings updated",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"user": {
+											"type": "object",
+											"properties": {
+												"id": { "type": "string", "format": "uuid" },
+												"is_private": { "type": "boolean" }
+											}
+										},
+										"message": { "type": "string" }
+									}
+								}
+							}
+						}
+					},
+					"400": { "description": "Missing user_id or invalid body" },
+					"404": { "description": "User not found" }
+				}
+			}
+		},
+		"/api/auth/change-password": {
+			"post": {
+				"tags": [
+					"Auth"
+				],
+				"summary": "Change password",
+				"description": "Change user password. Verifies current password, hashes new one, revokes all refresh tokens.",
+				"parameters": [
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": true,
+						"schema": { "type": "string", "format": "uuid" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"required": ["currentPassword", "newPassword"],
+								"properties": {
+									"currentPassword": { "type": "string", "example": "Password123!" },
+									"newPassword": { "type": "string", "minLength": 8, "example": "NewPassword456!" }
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": { "description": "Password changed successfully" },
+					"400": { "description": "Validation error" },
+					"401": { "description": "Current password is incorrect" },
+					"404": { "description": "User not found" }
+				}
+			}
+		},
+		"/api/users/me/badges/check": {
+			"post": {
+				"tags": [
+					"Profile & Gamification"
+				],
+				"summary": "Check and award badges",
+				"description": "Checks badge conditions against user stats and awards any newly earned badges. Creates activity and notification for each badge earned.",
+				"parameters": [
+					{
+						"name": "user_id",
+						"in": "query",
+						"required": true,
+						"schema": { "type": "string", "format": "uuid" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Badge check complete",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"awarded": {
+											"type": "array",
+											"items": { "type": "string" },
+											"description": "List of newly awarded badge slugs"
+										},
+										"message": { "type": "string" }
+									}
+								}
+							}
+						}
+					},
+					"400": { "description": "Missing user_id" }
+				}
+			}
 		}
 	},
 	"components": {
@@ -2822,6 +3148,50 @@
 							}
 						}
 					}
+				}
+			},
+			"UserStats": {
+				"type": "object",
+				"properties": {
+					"user_id": { "type": "string", "format": "uuid" },
+					"challenges_joined": { "type": "integer", "example": 3 },
+					"challenges_completed": { "type": "integer", "example": 1 },
+					"total_checkins": { "type": "integer", "example": 10 },
+					"current_streak": { "type": "integer", "example": 5 },
+					"best_streak": { "type": "integer", "example": 7 },
+					"updated_at": { "type": "string", "format": "date-time" }
+				}
+			},
+			"Badge": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string", "format": "uuid" },
+					"name": { "type": "string", "example": "Week Warrior" },
+					"slug": { "type": "string", "example": "streak-7" },
+					"description": { "type": "string", "example": "Maintained a 7-day streak" },
+					"icon_url": { "type": "string", "example": "/badges/streak-7.png" },
+					"condition_type": { "type": "string", "enum": ["challenges_completed", "streak_days", "early_adopter", "checkins_completed", "squad_mvp"] },
+					"condition_value": { "type": "integer", "example": 7 }
+				}
+			},
+			"UserBadge": {
+				"allOf": [
+					{ "$ref": "#/components/schemas/Badge" },
+					{
+						"type": "object",
+						"properties": {
+							"earned_at": { "type": "string", "format": "date-time" }
+						}
+					}
+				]
+			},
+			"Activity": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string", "format": "uuid" },
+					"type": { "type": "string", "enum": ["challenge_joined", "challenge_completed", "friend_added", "badge_earned", "checkin_done"] },
+					"metadata": { "type": "object" },
+					"created_at": { "type": "string", "format": "date-time" }
 				}
 			}
 		}
