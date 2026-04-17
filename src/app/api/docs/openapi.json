@@ -2,8 +2,8 @@
 	"openapi": "3.0.3",
 	"info": {
 		"title": "SOS App — Backend API",
-		"version": "0.9.0",
-		"description": "Snap or Slap challenge app. Sprint 8: Notifications & Widget (notification center, mark-read, delete, widget summary, sync overlays). All endpoints return JSON. No auth — use ?user_id=UUID.\n\nTest accounts: alice@example.com / bob@example.com / charlie@example.com / diana@example.com / edward@example.com (password: Password123!)"
+		"version": "0.10.0",
+		"description": "Snap or Slap challenge app. Sprint 9: History, Recreate & Milestones (challenge history detail, recreate from old challenge, lifetime stats, streak milestones). All endpoints return JSON. No auth — use ?user_id=UUID.\n\nTest accounts: alice@example.com / bob@example.com / charlie@example.com / diana@example.com / edward@example.com (password: Password123!)"
 	},
 	"servers": [
 		{
@@ -3090,6 +3090,338 @@
 					"400": {
 						"description": "Missing user_id"
 					}
+				}
+			}
+		},
+		"/api/challenges/{id}/history": {
+			"get": {
+				"tags": [
+					"History"
+				],
+				"summary": "Challenge history detail",
+				"description": "Returns detailed history for a finished challenge (completed/failed/cancelled). Includes result banner, final stats, member stats, gallery preview, and recreate eligibility. Returns 409 if challenge is still active or in formation.",
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Challenge ID"
+					},
+					{
+						"in": "query",
+						"name": "user_id",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Challenge history detail",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"challenge": {
+											"type": "object",
+											"description": "Full challenge object"
+										},
+										"result_banner": {
+											"type": "string",
+											"enum": ["CONGRATULATIONS", "VALIANT_EFFORT", "CANCELLED"],
+											"description": "Display banner based on challenge outcome"
+										},
+										"final_stats": {
+											"type": "object",
+											"nullable": true,
+											"description": "Final stats JSONB snapshot (totalCheckins, avgCompletion, etc.)"
+										},
+										"previous_squadmates": {
+											"type": "array",
+											"items": {
+												"type": "object",
+												"properties": {
+													"user_id": { "type": "string", "format": "uuid" },
+													"username": { "type": "string" },
+													"display_name": { "type": "string" },
+													"avatar_url": { "type": "string", "nullable": true },
+													"checkin_count": { "type": "integer" }
+												}
+											}
+										},
+										"gallery_preview": {
+											"type": "array",
+											"items": {
+												"type": "object",
+												"properties": {
+													"evidence_url": { "type": "string" },
+													"user_id": { "type": "string", "format": "uuid" },
+													"cycle_number": { "type": "integer" }
+												}
+											},
+											"maxItems": 6
+										},
+										"recreate_eligible": {
+											"type": "boolean",
+											"description": "True if challenge ended within 90 days and not already recreated"
+										},
+										"has_child_challenge": {
+											"type": "boolean"
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": { "description": "Missing user_id" },
+					"404": { "description": "Challenge not found" },
+					"409": { "description": "Challenge is not yet finished" }
+				}
+			}
+		},
+		"/api/challenges/{id}/recreate": {
+			"post": {
+				"tags": [
+					"History"
+				],
+				"summary": "Recreate challenge from old one",
+				"description": "Creates a new challenge by cloning settings from a finished challenge. Sets parent_challenge_id. Can override title, duration, etc. Optionally reinvites specified users (must be friends).",
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Old challenge ID to recreate from"
+					},
+					{
+						"in": "query",
+						"name": "user_id",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"title": { "type": "string", "description": "Override title (optional)" },
+									"description": { "type": "string", "nullable": true },
+									"duration_days": { "type": "integer", "minimum": 1 },
+									"frequency": { "type": "string", "enum": ["daily", "weekly", "custom"] },
+									"reset_time": { "type": "string", "example": "06:00:00" },
+									"total_hearts": { "type": "integer" },
+									"max_members": { "type": "integer" },
+									"is_private": { "type": "boolean" },
+									"cover_url": { "type": "string", "nullable": true },
+									"reinvite_user_ids": {
+										"type": "array",
+										"items": { "type": "string", "format": "uuid" },
+										"description": "User IDs to reinvite (must be friends)"
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "New challenge created",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"challenge": {
+											"type": "object",
+											"description": "Newly created challenge with parent_challenge_id set"
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": { "description": "Missing user_id or reinvite user is not a friend" },
+					"403": { "description": "User was not a member of old challenge" },
+					"404": { "description": "Old challenge not found" },
+					"409": { "description": "Old challenge is still active (not finished)" }
+				}
+			}
+		},
+		"/api/users/me/challenges/history": {
+			"get": {
+				"tags": [
+					"History"
+				],
+				"summary": "List finished challenges with lifetime stats",
+				"description": "Returns user's finished challenges (completed/failed/cancelled) with lifetime stats from user_stats table. Supports pagination and result filter.",
+				"parameters": [
+					{
+						"in": "query",
+						"name": "user_id",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
+					},
+					{
+						"in": "query",
+						"name": "result",
+						"schema": {
+							"type": "string",
+							"enum": ["success", "game_over", "cancelled"]
+						},
+						"description": "Filter by result type. success=completed, game_over=failed, cancelled=cancelled"
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"schema": {
+							"type": "integer",
+							"default": 1
+						}
+					},
+					{
+						"in": "query",
+						"name": "limit",
+						"schema": {
+							"type": "integer",
+							"default": 10,
+							"maximum": 50
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Finished challenges with lifetime stats",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"lifetime_stats": {
+											"type": "object",
+											"properties": {
+												"total_challenges": { "type": "integer" },
+												"total_completed": { "type": "integer" },
+												"best_streak": { "type": "integer" },
+												"total_checkins": { "type": "integer" }
+											}
+										},
+										"challenges": {
+											"type": "array",
+											"items": {
+												"type": "object",
+												"properties": {
+													"id": { "type": "string", "format": "uuid" },
+													"title": { "type": "string" },
+													"status": { "type": "string" },
+													"end_reason": { "type": "string", "nullable": true },
+													"start_at": { "type": "string", "format": "date-time" },
+													"ended_at": { "type": "string", "format": "date-time", "nullable": true },
+													"current_step": { "type": "integer" },
+													"duration_days": { "type": "integer" },
+													"hearts_left": { "type": "integer" },
+													"member_count": { "type": "integer" },
+													"creator_username": { "type": "string" },
+													"has_child_challenge": { "type": "boolean" }
+												}
+											}
+										},
+										"total": { "type": "integer" },
+										"page": { "type": "integer" },
+										"limit": { "type": "integer" }
+									}
+								}
+							}
+						}
+					},
+					"400": { "description": "Missing user_id" }
+				}
+			}
+		},
+		"/api/challenges/{id}/milestone-check": {
+			"post": {
+				"tags": [
+					"History"
+				],
+				"summary": "Check & trigger streak milestones",
+				"description": "Checks if user's current streak hits a milestone (7, 14, 30, 60, 100, 365 days). Creates notification and activity if milestone hit and not already triggered.",
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"description": "Challenge ID (used in milestone metadata)"
+					},
+					{
+						"in": "query",
+						"name": "user_id",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Milestone check result",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"milestone_triggered": {
+											"type": "boolean"
+										},
+										"milestone_days": {
+											"type": "integer",
+											"nullable": true,
+											"description": "The milestone value if triggered"
+										},
+										"current_streak": {
+											"type": "integer"
+										},
+										"best_streak": {
+											"type": "integer"
+										},
+										"next_milestone": {
+											"type": "integer",
+											"nullable": true,
+											"description": "Next milestone to reach"
+										},
+										"reason": {
+											"type": "string",
+											"nullable": true,
+											"description": "Why milestone was not triggered (e.g., 'Already triggered this milestone')"
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": { "description": "Missing user_id" }
 				}
 			}
 		}
