@@ -38,6 +38,7 @@ describe('GET /api/challenges', () => {
 
 	it('should return paginated challenges list', async () => {
 		mockQuery
+			.mockResolvedValueOnce({ rows: [] }) // opportunistic formation transition
 			.mockResolvedValueOnce({
 				rows: [
 					{
@@ -64,6 +65,7 @@ describe('GET /api/challenges', () => {
 
 	it('should support status filter', async () => {
 		mockQuery
+			.mockResolvedValueOnce({ rows: [] }) // opportunistic formation transition
 			.mockResolvedValueOnce({ rows: [] })
 			.mockResolvedValueOnce({ rows: [{ count: 0 }] });
 
@@ -165,6 +167,7 @@ describe('GET /api/challenges/[id]', () => {
 
 	it('should return challenge with members', async () => {
 		mockQuery
+			.mockResolvedValueOnce({ rows: [] }) // opportunistic formation transition
 			.mockResolvedValueOnce({
 				rows: [{
 					id: CHALLENGE_ID, title: 'Wake Up Early', status: 'active',

@@ -122,12 +122,12 @@ describe('processFormationTransitions', () => {
 		mockQuery.mockReset();
 	});
 
-	it('should activate challenge with start_at 5min ago and 3 accepted members', async () => {
+	it('should activate challenge with start_at reached, enough accepted members, and all ready', async () => {
 		// Query 1: find formation challenges past start_at
 		mockQuery.mockResolvedValueOnce({
 			rows: [{
 				id: CHALLENGE_ID, title: 'Test Challenge', start_at: FIVE_MIN_AGO,
-				creator_id: UUID1, accepted_count: 3,
+				creator_id: UUID1, accepted_count: 3, ready_count: 3,
 			}],
 		});
 		// Query 2: UPDATE status = active
@@ -147,6 +147,7 @@ describe('processFormationTransitions', () => {
 		const result = await processFormationTransitions();
 		expect(result.activated).toContain(CHALLENGE_ID);
 		expect(result.cancelled).toHaveLength(0);
+		expect(result.transitioned_count).toBe(1);
 		// Verify UPDATE was called with 'active'
 		expect(mockQuery).toHaveBeenCalledWith(
 			expect.stringContaining("status = 'active'"),
@@ -154,28 +155,39 @@ describe('processFormationTransitions', () => {
 		);
 	});
 
-	it('should cancel challenge with start_at 5min ago and only 1 member', async () => {
+	it('should skip challenge with start_at reached and one accepted member', async () => {
 		mockQuery.mockResolvedValueOnce({
 			rows: [{
 				id: CHALLENGE_ID, title: 'Lonely Challenge', start_at: FIVE_MIN_AGO,
-				creator_id: UUID1, accepted_count: 1,
+				creator_id: UUID1, accepted_count: 1, ready_count: 1,
 			}],
 		});
-		// UPDATE cancel
-		mockQuery.mockResolvedValueOnce({ rowCount: 1 });
-		// get all members
-		mockQuery.mockResolvedValueOnce({ rows: [{ user_id: UUID1 }] });
-		// notify
-		mockQuery.mockResolvedValueOnce({ rowCount: 1 });
 
 		const { processFormationTransitions } = require('@/lib/services/cronService');
 		const result = await processFormationTransitions();
 		expect(result.activated).toHaveLength(0);
-		expect(result.cancelled).toContain(CHALLENGE_ID);
+		expect(result.cancelled).toHaveLength(0);
+		expect(result.skipped[0].reason).toBe('not_enough_accepted_members');
+		expect(result.skipped_count).toBe(1);
+	});
+
+	it('should skip challenge when not all accepted members are ready', async () => {
+		mockQuery.mockResolvedValueOnce({
+			rows: [{
+				id: CHALLENGE_ID, title: 'Not Ready', start_at: FIVE_MIN_AGO,
+				creator_id: UUID1, accepted_count: 3, ready_count: 2,
+			}],
+		});
+
+		const { processFormationTransitions } = require('@/lib/services/cronService');
+		const result = await processFormationTransitions();
+		expect(result.activated).toHaveLength(0);
+		expect(result.skipped[0].reason).toBe('not_all_accepted_members_ready');
+		expect(mockQuery).toHaveBeenCalledTimes(1);
 	});
 
 	it('should skip challenges with start_at in the future', async () => {
-		// No challenges returned (query has start_at <= NOW() - 5min)
+		// No challenges returned (query has start_at <= now)
 		mockQuery.mockResolvedValueOnce({ rows: [] });
 
 		const { processFormationTransitions } = require('@/lib/services/cronService');
@@ -192,6 +204,22 @@ describe('processFormationTransitions', () => {
 		const result = await processFormationTransitions();
 		expect(result.activated).toHaveLength(0);
 		expect(mockQuery).toHaveBeenCalledTimes(1); // Only the SELECT
+	});
+
+	it('should be idempotent when an eligible challenge was already updated by another runner', async () => {
+		mockQuery
+			.mockResolvedValueOnce({
+				rows: [{
+					id: CHALLENGE_ID, title: 'Race', start_at: FIVE_MIN_AGO,
+					creator_id: UUID1, accepted_count: 2, ready_count: 2,
+				}],
+			})
+			.mockResolvedValueOnce({ rowCount: 0 });
+
+		const { processFormationTransitions } = require('@/lib/services/cronService');
+		const result = await processFormationTransitions();
+		expect(result.activated).toHaveLength(0);
+		expect(result.skipped[0].reason).toBe('already_processed');
 	});
 });
 

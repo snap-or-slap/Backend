@@ -120,8 +120,8 @@ describe('POST /api/challenges/:id/invite', () => {
 		expect(res.status).toBe(400);
 	});
 
-	it('should return 403 when user is not host', async () => {
-		mockQuery.mockResolvedValueOnce({ rows: [] }); // not host
+	it('should return 403 when user is not an accepted member', async () => {
+		mockQuery.mockResolvedValueOnce({ rows: [] }); // not accepted member
 		const { POST } = require('@/app/api/challenges/[id]/invite/route');
 		const req = new Request(`http://localhost:3000/api/challenges/${CHALLENGE_ID}/invite?user_id=${UUID2}`, {
 			method: 'POST',
@@ -146,7 +146,8 @@ describe('POST /api/challenges/:id/invite', () => {
 
 	it('should return 409 when no slots available', async () => {
 		mockQuery
-			.mockResolvedValueOnce({ rows: [{ id: CHALLENGE_ID, status: 'formation', max_members: 2 }] }) // challenge
+			.mockResolvedValueOnce({ rows: [{ id: CHALLENGE_ID, status: 'formation', max_members: 2, title: 'Test' }] }) // challenge
+			.mockResolvedValueOnce({ rows: [] }) // already member check
 			.mockResolvedValueOnce({ rows: [{ count: 2 }] }); // current member count = max
 		const { POST } = require('@/app/api/challenges/[id]/invite/route');
 		const req = new Request(`http://localhost:3000/api/challenges/${CHALLENGE_ID}/invite?user_id=${UUID1}`, {
@@ -160,7 +161,8 @@ describe('POST /api/challenges/:id/invite', () => {
 
 	it('should return 400 when invitee is not friend', async () => {
 		mockQuery
-			.mockResolvedValueOnce({ rows: [{ id: CHALLENGE_ID, status: 'formation', max_members: 10 }] })
+			.mockResolvedValueOnce({ rows: [{ id: CHALLENGE_ID, status: 'formation', max_members: 10, title: 'Test' }] })
+			.mockResolvedValueOnce({ rows: [] }) // already member check
 			.mockResolvedValueOnce({ rows: [{ count: 1 }] }) // 1 current member
 			.mockResolvedValueOnce({ rows: [] }); // no friendship found
 		const { POST } = require('@/app/api/challenges/[id]/invite/route');
@@ -175,10 +177,10 @@ describe('POST /api/challenges/:id/invite', () => {
 
 	it('should invite friends successfully', async () => {
 		mockQuery
-			.mockResolvedValueOnce({ rows: [{ id: CHALLENGE_ID, status: 'formation', max_members: 10 }] })
+			.mockResolvedValueOnce({ rows: [{ id: CHALLENGE_ID, status: 'formation', max_members: 10, title: 'Test' }] })
+			.mockResolvedValueOnce({ rows: [] }) // already member check → none
 			.mockResolvedValueOnce({ rows: [{ count: 1 }] }) // 1 current member
 			.mockResolvedValueOnce({ rows: [{ friend_id: UUID2 }] }) // friendship check
-			.mockResolvedValueOnce({ rows: [] }) // already member check → none
 			.mockResolvedValueOnce({ rows: [{ id: 'member-id', user_id: UUID2, status: 'invited' }] }) // insert member
 			.mockResolvedValueOnce({ rows: [] }); // notification
 		const { POST } = require('@/app/api/challenges/[id]/invite/route');

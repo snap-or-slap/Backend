@@ -1,13 +1,22 @@
 import { Pool, QueryResult, QueryResultRow } from 'pg';
 
-const isInternalConnection = process.env.DATABASE_URL?.includes('.railway.internal');
+const databaseUrl = process.env.DATABASE_URL;
+
+const isInternalConnection = databaseUrl?.includes('.railway.internal');
+
+const isLocalConnection =
+	databaseUrl?.includes('localhost') ||
+	databaseUrl?.includes('127.0.0.1') ||
+	databaseUrl?.includes('host.docker.internal');
+
+const shouldUseSsl = Boolean(databaseUrl) && !isLocalConnection && !isInternalConnection;
 
 const pool = new Pool({
-	connectionString: process.env.DATABASE_URL,
+	connectionString: databaseUrl,
 	max: 10,
 	idleTimeoutMillis: 30000,
 	connectionTimeoutMillis: 5000,
-	ssl: isInternalConnection ? false : { rejectUnauthorized: false },
+	ssl: shouldUseSsl ? { rejectUnauthorized: false } : false,
 });
 
 async function query<T extends QueryResultRow = QueryResultRow>(

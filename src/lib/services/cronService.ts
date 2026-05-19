@@ -2,83 +2,136 @@ import { query } from '@/lib/db';
 import { getCurrentCycle } from './checkinService';
 
 // ============================================
-// Formation → Active / Cancelled transition
+// Formation → Active transition
 // ============================================
-export async function processFormationTransitions(): Promise<{
+const MIN_ACCEPTED_MEMBERS = 2;
+
+type FormationSkipReason =
+	| 'not_enough_accepted_members'
+	| 'not_all_accepted_members_ready'
+	| 'already_processed';
+
+export type FormationTransitionResult = {
+	transitioned: string[];
 	activated: string[];
 	cancelled: string[];
-}> {
-	const activated: string[] = [];
-	const cancelled: string[] = [];
+	skipped: Array<{
+		challenge_id: string;
+		reason: FormationSkipReason;
+		accepted_count: number;
+		ready_count: number;
+	}>;
+	transitioned_count: number;
+	cancelled_count: number;
+	skipped_count: number;
+};
 
-	// Find formation challenges past start_at (with 5-min grace period)
+export async function transitionDueFormationChallenges(now = new Date()): Promise<FormationTransitionResult> {
+	const transitioned: string[] = [];
+	const skipped: FormationTransitionResult['skipped'] = [];
+
 	const { rows: challenges } = await query(
-		`SELECT c.id, c.title, c.start_at, c.creator_id,
-		        (SELECT COUNT(*)::int FROM challenge_members WHERE challenge_id = c.id AND status = 'accepted') AS accepted_count
+		`SELECT c.id, c.title, c.start_at, c.creator_id, c.total_hearts, c.hearts_left,
+		        COUNT(cm.user_id) FILTER (WHERE cm.status = 'accepted')::int AS accepted_count,
+		        COUNT(cm.user_id) FILTER (WHERE cm.status = 'accepted' AND cm.is_ready = true)::int AS ready_count
 		 FROM challenges c
+		 LEFT JOIN challenge_members cm ON cm.challenge_id = c.id
 		 WHERE c.status = 'formation'
 		   AND c.start_at IS NOT NULL
-		   AND c.start_at <= NOW() - INTERVAL '5 minutes'`
+		   AND c.start_at <= $1
+		 GROUP BY c.id`,
+		[now]
 	);
 
 	for (const ch of challenges) {
-		if (ch.accepted_count >= 2) {
-			// Activate
-			await query(
-				`UPDATE challenges SET status = 'active', updated_at = NOW() WHERE id = $1`,
-				[ch.id]
-			);
+		const acceptedCount = Number(ch.accepted_count ?? 0);
+		const readyCount = Number(ch.ready_count ?? 0);
 
-			// Notify all accepted members
-			const { rows: members } = await query(
-				`SELECT user_id FROM challenge_members WHERE challenge_id = $1 AND status = 'accepted'`,
-				[ch.id]
-			);
-			for (const m of members) {
-				await query(
-					`INSERT INTO notifications (user_id, type, metadata)
-					 VALUES ($1, 'challenge_start', $2)`,
-					[m.user_id, JSON.stringify({ challenge_id: ch.id, title: ch.title })]
-				);
-			}
-			// Create activities
-			for (const m of members) {
-				await query(
-					`INSERT INTO activities (user_id, type, metadata)
-					 VALUES ($1, 'challenge_joined', $2)`,
-					[m.user_id, JSON.stringify({ challenge_id: ch.id, title: ch.title })]
-				);
-			}
-
-			activated.push(ch.id as string);
-			console.log(`[CRON] formation-to-active: challenge ${ch.id} activated with ${ch.accepted_count} members`);
-		} else {
-			// Cancel — not enough members
-			await query(
-				`UPDATE challenges SET status = 'cancelled', end_reason = 'host_cancelled', updated_at = NOW() WHERE id = $1`,
-				[ch.id]
-			);
-
-			// Notify all members (including invited)
-			const { rows: members } = await query(
-				`SELECT user_id FROM challenge_members WHERE challenge_id = $1`,
-				[ch.id]
-			);
-			for (const m of members) {
-				await query(
-					`INSERT INTO notifications (user_id, type, metadata)
-					 VALUES ($1, 'challenge_start', $2)`,
-					[m.user_id, JSON.stringify({ challenge_id: ch.id, title: ch.title, cancelled: true, reason: 'Not enough members joined' })]
-				);
-			}
-
-			cancelled.push(ch.id as string);
-			console.log(`[CRON] formation-to-active: challenge ${ch.id} cancelled (only ${ch.accepted_count} members)`);
+		if (acceptedCount < MIN_ACCEPTED_MEMBERS) {
+			skipped.push({
+				challenge_id: ch.id as string,
+				reason: 'not_enough_accepted_members',
+				accepted_count: acceptedCount,
+				ready_count: readyCount,
+			});
+			continue;
 		}
+
+		if (readyCount < acceptedCount) {
+			skipped.push({
+				challenge_id: ch.id as string,
+				reason: 'not_all_accepted_members_ready',
+				accepted_count: acceptedCount,
+				ready_count: readyCount,
+			});
+			continue;
+		}
+
+		const { rowCount } = await query(
+			`UPDATE challenges
+			 SET status = 'active',
+			     current_step = COALESCE(current_step, 0),
+			     last_processed_cycle = COALESCE(last_processed_cycle, 0),
+			     hearts_left = COALESCE(hearts_left, total_hearts),
+			     updated_at = NOW()
+			 WHERE id = $1 AND status = 'formation'`,
+			[ch.id]
+		);
+
+		if (!rowCount || rowCount === 0) {
+			skipped.push({
+				challenge_id: ch.id as string,
+				reason: 'already_processed',
+				accepted_count: acceptedCount,
+				ready_count: readyCount,
+			});
+			continue;
+		}
+
+		const { rows: members } = await query(
+			`SELECT user_id FROM challenge_members WHERE challenge_id = $1 AND status = 'accepted'`,
+			[ch.id]
+		);
+
+		for (const m of members) {
+			await query(
+				`INSERT INTO notifications (user_id, type, metadata)
+				 VALUES ($1, 'challenge_start', $2)`,
+				[m.user_id, JSON.stringify({
+					challenge_id: ch.id,
+					challengeId: ch.id,
+					challenge_title: ch.title,
+					challengeTitle: ch.title,
+				})]
+			);
+		}
+
+		for (const m of members) {
+			await query(
+				`INSERT INTO activities (user_id, type, metadata)
+				 VALUES ($1, 'challenge_joined', $2)`,
+				[m.user_id, JSON.stringify({ challenge_id: ch.id, title: ch.title })]
+			);
+		}
+
+		transitioned.push(ch.id as string);
+		console.log(`[CRON] formation-to-active: challenge ${ch.id} activated with ${acceptedCount} ready members`);
 	}
 
-	console.log(`[CRON] formation-to-active: processed ${challenges.length} challenges (${activated.length} activated, ${cancelled.length} cancelled)`);
-	return { activated, cancelled };
+	console.log(`[CRON] formation-to-active: processed ${challenges.length} due challenges (${transitioned.length} activated, ${skipped.length} skipped)`);
+	return {
+		transitioned,
+		activated: transitioned,
+		cancelled: [],
+		skipped,
+		transitioned_count: transitioned.length,
+		cancelled_count: 0,
+		skipped_count: skipped.length,
+	};
+}
+
+export async function processFormationTransitions(): Promise<FormationTransitionResult> {
+	return transitionDueFormationChallenges();
 }
 
 // ============================================

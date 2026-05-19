@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { createChallengeSchema } from '@/lib/schemas/challenge';
+import { transitionDueFormationChallenges } from '@/lib/services/cronService';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -13,6 +14,8 @@ export async function GET(req: NextRequest) {
   const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
   const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)));
   const offset = (page - 1) * limit;
+
+  await transitionDueFormationChallenges();
 
   let whereClause = `WHERE cm.user_id = $1 AND cm.status = 'accepted'`;
   const params: unknown[] = [userId];
@@ -128,7 +131,18 @@ export async function POST(req: NextRequest) {
     const notifValues = invitedUserIds.map((_, i) => `($${i + 1}, 'challenge_invite', $${invitedUserIds.length + 1})`).join(', ');
     await query(
       `INSERT INTO notifications (user_id, type, metadata) VALUES ${notifValues}`,
-      [...invitedUserIds, JSON.stringify({ challenge_id: challenge.id, challenge_title: title, invited_by: userId })]
+      [
+        ...invitedUserIds,
+        JSON.stringify({
+          challenge_id: challenge.id,
+          challengeId: challenge.id,
+          challenge_title: title,
+          challengeTitle: title,
+          inviter_id: userId,
+          inviterId: userId,
+          invited_by: userId,
+        }),
+      ]
     );
   }
 

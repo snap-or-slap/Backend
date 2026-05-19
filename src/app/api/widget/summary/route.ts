@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import { transitionDueFormationChallenges } from '@/lib/services/cronService';
 
 export async function GET(req: NextRequest) {
 	const { searchParams } = new URL(req.url);
@@ -7,6 +8,8 @@ export async function GET(req: NextRequest) {
 	if (!userId) {
 		return NextResponse.json({ error: 'user_id query param is required' }, { status: 400 });
 	}
+
+	await transitionDueFormationChallenges();
 
 	// Current streak
 	const { rows: statsRows } = await query(

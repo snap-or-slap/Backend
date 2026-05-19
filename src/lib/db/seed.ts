@@ -1,16 +1,30 @@
+import { loadEnvConfig } from '@next/env';
 import { Pool } from 'pg';
 
-async function seed() {
-	const databaseUrl = process.env.DIRECT_URL || process.env.DATABASE_URL;
-	if (!databaseUrl) {
-		console.error('DIRECT_URL or DATABASE_URL must be set');
-		process.exit(1);
-	}
+loadEnvConfig(process.cwd());
 
-	const pool = new Pool({
-		connectionString: databaseUrl,
-		ssl: { rejectUnauthorized: false },
-	});
+const databaseUrl = process.env.DIRECT_URL || process.env.DATABASE_URL;
+
+if (!databaseUrl) {
+	console.error('DIRECT_URL or DATABASE_URL must be set');
+	process.exit(1);
+}
+
+const isInternalConnection = databaseUrl.includes('.railway.internal');
+
+const isLocalConnection =
+	databaseUrl.includes('localhost') ||
+	databaseUrl.includes('127.0.0.1') ||
+	databaseUrl.includes('host.docker.internal');
+
+const shouldUseSsl = !isLocalConnection && !isInternalConnection;
+
+const pool = new Pool({
+	connectionString: databaseUrl,
+	ssl: shouldUseSsl ? { rejectUnauthorized: false } : false,
+});
+
+async function seed() {
 
 	try {
 		console.log('Seeding test data...');
