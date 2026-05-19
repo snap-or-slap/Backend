@@ -5,7 +5,7 @@ import { processFormationTransitions, processHeartDeductions } from '@/lib/servi
 type JobName = 'formation-transition' | 'heart-deduction';
 
 const JOB_DESCRIPTIONS: Record<JobName, string> = {
-	'formation-transition': 'Transitions formation challenges to active (if enough members) or cancelled (if not enough members) after start_at + 5 min grace period.',
+	'formation-transition': 'Transitions due formation challenges to active when start_at has passed, at least two accepted members exist, and all accepted members are ready.',
 	'heart-deduction': 'Processes daily heart deductions for active challenges. Deducts 1 heart if any member missed check-in. Ends challenge if hearts reach 0 or duration reached.',
 };
 

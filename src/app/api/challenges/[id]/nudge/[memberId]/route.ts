@@ -2,81 +2,216 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { getCurrentCycle } from '@/lib/services/checkinService';
 
-// POST — Send a nudge notification to a member who hasn't checked in
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string; memberId: string }> }) {
+const UUID_REGEX =
+	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(value: string | null | undefined): value is string {
+	return Boolean(value && UUID_REGEX.test(value));
+}
+
+// POST — Send a nudge/slap notification to a member who has not checked in
+export async function POST(
+	req: NextRequest,
+	{ params }: { params: Promise<{ id: string; memberId: string }> },
+) {
 	const { id, memberId } = await params;
 	const userId = new URL(req.url).searchParams.get('user_id');
-	if (!userId) {
-		return NextResponse.json({ error: 'user_id query param is required' }, { status: 400 });
+
+	if (!isUuid(id)) {
+		return NextResponse.json({ error: 'Invalid challenge id' }, { status: 400 });
 	}
 
-	if (userId === memberId) {
-		return NextResponse.json({ error: 'Cannot nudge yourself' }, { status: 400 });
+	if (!isUuid(memberId)) {
+		return NextResponse.json({ error: 'Invalid member id' }, { status: 400 });
 	}
 
-	// Check both are accepted members + get challenge info
-	const { rows: members } = await query(
-		`SELECT cm.user_id, c.status AS challenge_status, c.start_at
-		 FROM challenge_members cm
-		 JOIN challenges c ON c.id = cm.challenge_id
-		 WHERE cm.challenge_id = $1 AND cm.user_id IN ($2, $3) AND cm.status = 'accepted'`,
-		[id, userId, memberId]
+	if (!isUuid(userId)) {
+		return NextResponse.json(
+			{ error: 'user_id query param is required' },
+			{ status: 400 },
+		);
+	}
+
+	const { rows: challenges } = await query(
+		`SELECT id, title, status, start_at, current_step
+		 FROM challenges
+		 WHERE id = $1::uuid`,
+		[id],
 	);
 
-	if (members.length < 2) {
-		return NextResponse.json({ error: 'Both users must be accepted members' }, { status: 403 });
+	if (challenges.length === 0) {
+		return NextResponse.json({ error: 'Challenge not found' }, { status: 404 });
 	}
 
-	if (members[0].challenge_status !== 'active') {
+	const challenge = challenges[0];
+
+	if (challenge.status !== 'active') {
 		return NextResponse.json({ error: 'Challenge is not active' }, { status: 409 });
 	}
 
-	// Check target hasn't already checked in this cycle
-	const cycleNumber = getCurrentCycle(members[0].start_at);
+	const { rows: senderRows } = await query(
+		`SELECT id, user_id, status
+		 FROM challenge_members
+		 WHERE challenge_id = $1::uuid
+		   AND user_id = $2::uuid`,
+		[id, userId],
+	);
+
+	if (senderRows.length === 0 || senderRows[0].status !== 'accepted') {
+		return NextResponse.json(
+			{ error: 'Sender must be an accepted member' },
+			{ status: 403 },
+		);
+	}
+
+	/**
+	 * memberId is accepted as either:
+	 * - challenge_members.id
+	 * - challenge_members.user_id
+	 *
+	 * This avoids frontend ambiguity.
+	 */
+	const { rows: targetRows } = await query(
+		`SELECT id, user_id, status
+		 FROM challenge_members
+		 WHERE challenge_id = $1::uuid
+		   AND (id = $2::uuid OR user_id = $2::uuid)`,
+		[id, memberId],
+	);
+
+	if (targetRows.length === 0 || targetRows[0].status !== 'accepted') {
+		return NextResponse.json(
+			{ error: 'Target must be an accepted member' },
+			{ status: 403 },
+		);
+	}
+
+	const target = targetRows[0];
+
+	if (target.user_id === userId) {
+		return NextResponse.json({ error: 'Cannot nudge yourself' }, { status: 400 });
+	}
+
+	const cycleNumber = getCurrentCycle(challenge.start_at);
+
 	const { rows: targetCheckin } = await query(
-		`SELECT id FROM checkins WHERE challenge_id = $1 AND user_id = $2 AND cycle_number = $3`,
-		[id, memberId, cycleNumber]
+		`SELECT id
+		 FROM checkins
+		 WHERE challenge_id = $1::uuid
+		   AND user_id = $2::uuid
+		   AND cycle_number = $3::int`,
+		[id, target.user_id, cycleNumber],
 	);
+
 	if (targetCheckin.length > 0) {
-		return NextResponse.json({ error: 'Member has already checked in for this cycle' }, { status: 400 });
+		return NextResponse.json(
+			{ error: 'Member has already checked in for this cycle' },
+			{ status: 400 },
+		);
 	}
 
-	// Rate limit: 1 nudge per target per day per challenge
+	// Rate limit: 1 nudge per sender/target/challenge/cycle.
 	const { rows: recentNudge } = await query(
-		`SELECT id FROM notifications
-		 WHERE user_id = $1 AND type = 'nudge'
-		   AND metadata->>'from_user_id' = $2
-		   AND metadata->>'challenge_id' = $3
-		   AND created_at > NOW() - INTERVAL '1 day'`,
-		[memberId, userId, id]
+		`SELECT id
+		 FROM notifications
+		 WHERE user_id = $1::uuid
+		   AND type = 'nudge'
+		   AND metadata->>'from_user_id' = $2::text
+		   AND metadata->>'challenge_id' = $3::text
+		   AND metadata->>'cycle_number' = $4::text
+		 LIMIT 1`,
+		[target.user_id, userId, id, String(cycleNumber)],
 	);
+
 	if (recentNudge.length > 0) {
-		return NextResponse.json({ error: 'Already nudged this member today' }, { status: 429 });
+		return NextResponse.json(
+			{ error: 'Already nudged this member today' },
+			{ status: 429 },
+		);
 	}
 
-	// Create notification
 	await query(
 		`INSERT INTO notifications (user_id, type, metadata)
-		 VALUES ($1, 'nudge', $2)`,
-		[memberId, JSON.stringify({ from_user_id: userId, challenge_id: id })]
+		 VALUES ($1::uuid, 'nudge', $2::jsonb)`,
+		[
+			target.user_id,
+			JSON.stringify({
+				from_user_id: userId,
+				senderId: userId,
+
+				challenge_id: id,
+				challengeId: id,
+
+				challenge_title: challenge.title,
+				challengeTitle: challenge.title,
+
+				target_user_id: target.user_id,
+				targetUserId: target.user_id,
+
+				target_member_id: target.id,
+				targetMemberId: target.id,
+
+				cycle_number: cycleNumber,
+				cycleNumber,
+
+				current_step: challenge.current_step,
+				currentStep: challenge.current_step,
+
+				action: 'slap_reminder',
+			}),
+		],
 	);
 
-	return NextResponse.json({ message: 'Nudge sent successfully', target_user_id: memberId });
+	return NextResponse.json({
+		message: 'Nudge sent successfully',
+		target_user_id: target.user_id,
+	});
 }
 
-// GET — View recent nudges for a member in this challenge (browser-testable)
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string; memberId: string }> }) {
+// GET — View recent nudges for a member in this challenge
+export async function GET(
+	_req: NextRequest,
+	{ params }: { params: Promise<{ id: string; memberId: string }> },
+) {
 	const { id, memberId } = await params;
+
+	if (!isUuid(id)) {
+		return NextResponse.json({ error: 'Invalid challenge id' }, { status: 400 });
+	}
+
+	if (!isUuid(memberId)) {
+		return NextResponse.json({ error: 'Invalid member id' }, { status: 400 });
+	}
+
+	const { rows: targetRows } = await query(
+		`SELECT id, user_id
+		 FROM challenge_members
+		 WHERE challenge_id = $1::uuid
+		   AND (id = $2::uuid OR user_id = $2::uuid)`,
+		[id, memberId],
+	);
+
+	if (targetRows.length === 0) {
+		return NextResponse.json({ error: 'Target member not found' }, { status: 404 });
+	}
+
+	const target = targetRows[0];
 
 	const { rows: nudges } = await query(
 		`SELECT n.id, n.metadata, n.created_at, n.is_read
 		 FROM notifications n
-		 WHERE n.user_id = $1 AND n.type = 'nudge'
-		   AND n.metadata->>'challenge_id' = $2
+		 WHERE n.user_id = $1::uuid
+		   AND n.type = 'nudge'
+		   AND n.metadata->>'challenge_id' = $2::text
 		 ORDER BY n.created_at DESC
 		 LIMIT 10`,
-		[memberId, id]
+		[target.user_id, id],
 	);
 
-	return NextResponse.json({ nudges, member_id: memberId, challenge_id: id });
+	return NextResponse.json({
+		nudges,
+		member_id: target.id,
+		target_user_id: target.user_id,
+		challenge_id: id,
+	});
 }

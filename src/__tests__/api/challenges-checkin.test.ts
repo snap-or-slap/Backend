@@ -289,6 +289,11 @@ describe('POST /api/challenges/:id/nudge/:memberId', () => {
 	});
 
 	it('should reject nudging yourself', async () => {
+		mockQuery
+			.mockResolvedValueOnce({ rows: [{ id: CHALLENGE_ID, title: 'Active', status: 'active', start_at: THREE_DAYS_AGO, current_step: 3 }] })
+			.mockResolvedValueOnce({ rows: [{ id: 'member-1', user_id: UUID1, status: 'accepted' }] })
+			.mockResolvedValueOnce({ rows: [{ id: 'member-1', user_id: UUID1, status: 'accepted' }] });
+
 		const { POST } = require('@/app/api/challenges/[id]/nudge/[memberId]/route');
 		const req = new Request(
 			`http://localhost/api/challenges/${CHALLENGE_ID}/nudge/${UUID1}?user_id=${UUID1}`,
@@ -300,10 +305,39 @@ describe('POST /api/challenges/:id/nudge/:memberId', () => {
 		expect(body.error).toContain('Cannot nudge yourself');
 	});
 
-	it('should reject if not both members', async () => {
+	it('should reject if challenge is not active', async () => {
 		mockQuery.mockResolvedValueOnce({
-			rows: [{ user_id: UUID1, challenge_status: 'active', start_at: THREE_DAYS_AGO }],
-		}); // only sender found
+			rows: [{ id: CHALLENGE_ID, title: 'Formation', status: 'formation', start_at: THREE_DAYS_AGO, current_step: 0 }],
+		});
+
+		const { POST } = require('@/app/api/challenges/[id]/nudge/[memberId]/route');
+		const req = new Request(
+			`http://localhost/api/challenges/${CHALLENGE_ID}/nudge/${UUID2}?user_id=${UUID1}`,
+			{ method: 'POST' }
+		);
+		const res = await POST(req, { params: Promise.resolve({ id: CHALLENGE_ID, memberId: UUID2 }) });
+		expect(res.status).toBe(409);
+	});
+
+	it('should reject if sender is not an accepted member', async () => {
+		mockQuery
+			.mockResolvedValueOnce({ rows: [{ id: CHALLENGE_ID, title: 'Active', status: 'active', start_at: THREE_DAYS_AGO, current_step: 3 }] })
+			.mockResolvedValueOnce({ rows: [] });
+
+		const { POST } = require('@/app/api/challenges/[id]/nudge/[memberId]/route');
+		const req = new Request(
+			`http://localhost/api/challenges/${CHALLENGE_ID}/nudge/${UUID2}?user_id=${UUID1}`,
+			{ method: 'POST' }
+		);
+		const res = await POST(req, { params: Promise.resolve({ id: CHALLENGE_ID, memberId: UUID2 }) });
+		expect(res.status).toBe(403);
+	});
+
+	it('should reject if target is not an accepted member', async () => {
+		mockQuery
+			.mockResolvedValueOnce({ rows: [{ id: CHALLENGE_ID, title: 'Active', status: 'active', start_at: THREE_DAYS_AGO, current_step: 3 }] })
+			.mockResolvedValueOnce({ rows: [{ id: 'member-1', user_id: UUID1, status: 'accepted' }] })
+			.mockResolvedValueOnce({ rows: [{ id: 'member-2', user_id: UUID2, status: 'invited' }] });
 
 		const { POST } = require('@/app/api/challenges/[id]/nudge/[memberId]/route');
 		const req = new Request(
@@ -316,12 +350,9 @@ describe('POST /api/challenges/:id/nudge/:memberId', () => {
 
 	it('should reject if target already checked in', async () => {
 		mockQuery
-			.mockResolvedValueOnce({
-				rows: [
-					{ user_id: UUID1, challenge_status: 'active', start_at: THREE_DAYS_AGO },
-					{ user_id: UUID2, challenge_status: 'active', start_at: THREE_DAYS_AGO },
-				],
-			})
+			.mockResolvedValueOnce({ rows: [{ id: CHALLENGE_ID, title: 'Active', status: 'active', start_at: THREE_DAYS_AGO, current_step: 3 }] })
+			.mockResolvedValueOnce({ rows: [{ id: 'member-1', user_id: UUID1, status: 'accepted' }] })
+			.mockResolvedValueOnce({ rows: [{ id: 'member-2', user_id: UUID2, status: 'accepted' }] })
 			.mockResolvedValueOnce({ rows: [{ id: 'existing-checkin' }] });
 
 		const { POST } = require('@/app/api/challenges/[id]/nudge/[memberId]/route');
@@ -337,12 +368,9 @@ describe('POST /api/challenges/:id/nudge/:memberId', () => {
 
 	it('should reject if already nudged today', async () => {
 		mockQuery
-			.mockResolvedValueOnce({
-				rows: [
-					{ user_id: UUID1, challenge_status: 'active', start_at: THREE_DAYS_AGO },
-					{ user_id: UUID2, challenge_status: 'active', start_at: THREE_DAYS_AGO },
-				],
-			})
+			.mockResolvedValueOnce({ rows: [{ id: CHALLENGE_ID, title: 'Active', status: 'active', start_at: THREE_DAYS_AGO, current_step: 3 }] })
+			.mockResolvedValueOnce({ rows: [{ id: 'member-1', user_id: UUID1, status: 'accepted' }] })
+			.mockResolvedValueOnce({ rows: [{ id: 'member-2', user_id: UUID2, status: 'accepted' }] })
 			.mockResolvedValueOnce({ rows: [] }) // target not checked in
 			.mockResolvedValueOnce({ rows: [{ id: 'existing-nudge' }] }); // already nudged
 
@@ -357,12 +385,9 @@ describe('POST /api/challenges/:id/nudge/:memberId', () => {
 
 	it('should send nudge successfully', async () => {
 		mockQuery
-			.mockResolvedValueOnce({
-				rows: [
-					{ user_id: UUID1, challenge_status: 'active', start_at: THREE_DAYS_AGO },
-					{ user_id: UUID2, challenge_status: 'active', start_at: THREE_DAYS_AGO },
-				],
-			})
+			.mockResolvedValueOnce({ rows: [{ id: CHALLENGE_ID, title: 'Active Challenge', status: 'active', start_at: THREE_DAYS_AGO, current_step: 3 }] })
+			.mockResolvedValueOnce({ rows: [{ id: 'member-1', user_id: UUID1, status: 'accepted' }] })
+			.mockResolvedValueOnce({ rows: [{ id: 'member-2', user_id: UUID2, status: 'accepted' }] })
 			.mockResolvedValueOnce({ rows: [] }) // target not checked in
 			.mockResolvedValueOnce({ rows: [] }) // no recent nudge
 			.mockResolvedValueOnce({ rows: [] }); // insert notification
@@ -376,5 +401,18 @@ describe('POST /api/challenges/:id/nudge/:memberId', () => {
 		const body = await res.json();
 		expect(res.status).toBe(200);
 		expect(body.message).toContain('Nudge sent');
+		expect(body.target_user_id).toBe(UUID2);
+		const insertCall = mockQuery.mock.calls.find(
+			(call: unknown[]) => typeof call[0] === 'string' && (call[0] as string).includes('INSERT INTO notifications')
+		);
+		expect(insertCall).toBeDefined();
+		const insertParams = (insertCall as [string, unknown[]])[1];
+		expect(JSON.parse(insertParams[1] as string)).toMatchObject({
+			challengeId: CHALLENGE_ID,
+			challengeTitle: 'Active Challenge',
+			senderId: UUID1,
+			targetMemberId: 'member-2',
+			action: 'slap_reminder',
+		});
 	});
 });

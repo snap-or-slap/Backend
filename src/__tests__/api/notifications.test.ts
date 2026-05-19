@@ -288,6 +288,8 @@ describe('GET /api/widget/summary', () => {
 	});
 
 	it('should return widget summary with streak, challenges, and unread count', async () => {
+		// opportunistic formation transition
+		mockQuery.mockResolvedValueOnce({ rows: [] });
 		// current streak query
 		mockQuery.mockResolvedValueOnce({
 			rows: [{ current_streak: 12 }],
@@ -325,6 +327,7 @@ describe('GET /api/widget/summary', () => {
 	});
 
 	it('should return empty active_challenges when user has none', async () => {
+		mockQuery.mockResolvedValueOnce({ rows: [] }); // opportunistic formation transition
 		mockQuery.mockResolvedValueOnce({ rows: [{ current_streak: 0 }] });
 		mockQuery.mockResolvedValueOnce({ rows: [] });
 		mockQuery.mockResolvedValueOnce({ rows: [{ count: 0 }] });
@@ -341,6 +344,7 @@ describe('GET /api/widget/summary', () => {
 	});
 
 	it('should return streak 0 if no stats row exists', async () => {
+		mockQuery.mockResolvedValueOnce({ rows: [] }); // opportunistic formation transition
 		mockQuery.mockResolvedValueOnce({ rows: [] }); // no stats
 		mockQuery.mockResolvedValueOnce({ rows: [] });
 		mockQuery.mockResolvedValueOnce({ rows: [{ count: 0 }] });

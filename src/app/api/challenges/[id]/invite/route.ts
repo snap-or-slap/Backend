@@ -10,17 +10,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 		return NextResponse.json({ error: 'user_id query param is required' }, { status: 400 });
 	}
 
-	// Verify user is host of this formation challenge
+	// Verify user is an accepted member of this formation challenge
 	const { rows: challenges } = await query(
-		`SELECT c.id, c.status, c.max_members
+		`SELECT c.id, c.status, c.max_members, c.title
      FROM challenges c
      JOIN challenge_members cm ON cm.challenge_id = c.id
-     WHERE c.id = $1 AND cm.user_id = $2 AND cm.role = 'host'`,
+     WHERE c.id = $1 AND cm.user_id = $2 AND cm.status = 'accepted'`,
 		[id, userId]
 	);
 
 	if (challenges.length === 0) {
-		return NextResponse.json({ error: 'Challenge not found or you are not the host' }, { status: 403 });
+		return NextResponse.json({ error: 'Challenge not found or you are not an accepted member' }, { status: 403 });
 	}
 
 	const challenge = challenges[0];
@@ -46,29 +46,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
 	const { userIds } = parsed.data;
 
-	// Check slot availability
-	const { rows: countRows } = await query(
-		`SELECT COUNT(*)::int AS count FROM challenge_members WHERE challenge_id = $1 AND status != 'declined'`,
-		[id]
-	);
-	const currentCount = parseInt(countRows[0].count, 10);
-	if (currentCount + userIds.length > challenge.max_members) {
-		return NextResponse.json({ error: 'No more slots available' }, { status: 409 });
-	}
-
-	// Verify all invitees are friends
-	const { rows: friends } = await query(
-		`SELECT CASE WHEN sender_id = $1 THEN receiver_id ELSE sender_id END AS friend_id
-     FROM friend_requests
-     WHERE status = 'accepted' AND (sender_id = $1 OR receiver_id = $1)`,
-		[userId]
-	);
-	const friendIds = new Set(friends.map((f) => f.friend_id as string));
-	const nonFriends = userIds.filter(uid => !friendIds.has(uid));
-	if (nonFriends.length > 0) {
-		return NextResponse.json({ error: 'Can only invite friends', nonFriendIds: nonFriends }, { status: 400 });
-	}
-
 	// Check which users are already members
 	const { rows: existingMembers } = await query(
 		`SELECT user_id FROM challenge_members WHERE challenge_id = $1 AND user_id = ANY($2)`,
@@ -79,6 +56,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
 	if (newUserIds.length === 0) {
 		return NextResponse.json({ error: 'All users are already members' }, { status: 409 });
+	}
+
+	// Check slot availability after excluding duplicate members/invites.
+	const { rows: countRows } = await query(
+		`SELECT COUNT(*)::int AS count FROM challenge_members WHERE challenge_id = $1 AND status != 'declined'`,
+		[id]
+	);
+	const currentCount = parseInt(countRows[0].count, 10);
+	if (currentCount + newUserIds.length > challenge.max_members) {
+		return NextResponse.json({ error: 'No more slots available' }, { status: 409 });
+	}
+
+	// Verify all new invitees are friends of the inviter.
+	const { rows: friends } = await query(
+		`SELECT CASE WHEN sender_id = $1 THEN receiver_id ELSE sender_id END AS friend_id
+     FROM friend_requests
+     WHERE status = 'accepted' AND (sender_id = $1 OR receiver_id = $1)`,
+		[userId]
+	);
+	const friendIds = new Set(friends.map((f) => f.friend_id as string));
+	const nonFriends = newUserIds.filter(uid => !friendIds.has(uid));
+	if (nonFriends.length > 0) {
+		return NextResponse.json({ error: 'Can only invite friends', nonFriendIds: nonFriends }, { status: 400 });
 	}
 
 	// Insert new members
@@ -94,7 +94,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 	const notifValues = newUserIds.map((_, i) => `($${i + 1}, 'challenge_invite', $${newUserIds.length + 1})`).join(', ');
 	await query(
 		`INSERT INTO notifications (user_id, type, metadata) VALUES ${notifValues}`,
-		[...newUserIds, JSON.stringify({ challenge_id: id, invited_by: userId })]
+		[
+			...newUserIds,
+			JSON.stringify({
+				challenge_id: id,
+				challengeId: id,
+				challenge_title: challenge.title,
+				challengeTitle: challenge.title,
+				inviter_id: userId,
+				inviterId: userId,
+				invited_by: userId,
+			}),
+		]
 	);
 
 	return NextResponse.json({ invited, skipped: [...existingIds] }, { status: 201 });

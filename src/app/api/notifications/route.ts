@@ -28,10 +28,40 @@ interface NotificationRow {
 
 function formatNotification(row: NotificationRow) {
 	const category = CATEGORY_MAP[row.type] || 'system';
+	const challengeTitle =
+		typeof row.metadata?.challengeTitle === 'string'
+			? row.metadata.challengeTitle
+			: typeof row.metadata?.challenge_title === 'string'
+				? row.metadata.challenge_title
+				: undefined;
+	const challengeId =
+		typeof row.metadata?.challengeId === 'string'
+			? row.metadata.challengeId
+			: typeof row.metadata?.challenge_id === 'string'
+				? row.metadata.challenge_id
+				: undefined;
+	const title =
+		row.type === 'challenge_invite'
+			? 'Challenge invitation'
+			: row.type === 'nudge'
+				? 'Slap reminder'
+				: row.type.replace(/_/g, ' ');
+	const message =
+		row.type === 'challenge_invite'
+			? challengeTitle
+				? `You were invited to ${challengeTitle}.`
+				: 'You were invited to a challenge.'
+			: row.type === 'nudge'
+				? 'A squadmate sent you a check-in reminder.'
+				: 'You have a new update.';
+
 	return {
 		id: row.id,
 		type: row.type,
 		category,
+		title,
+		message,
+		challenge_id: challengeId,
 		metadata: row.metadata,
 		is_read: row.is_read,
 		created_at: row.created_at,
