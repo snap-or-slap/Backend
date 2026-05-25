@@ -1,8 +1,28 @@
-import { randomUUID } from 'crypto';
-import { mkdir, writeFile } from 'fs/promises';
-import path from 'path';
+import {
+    v2 as cloudinary,
+    type UploadApiOptions,
+    type UploadApiResponse,
+} from 'cloudinary';
 
-const MAX_PROOF_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+export type UploadedFile = FormDataEntryValue & {
+    size: number;
+    type: string;
+    arrayBuffer: () => Promise<ArrayBuffer>;
+};
+
+type UploadCheckinProofParams = {
+    file: UploadedFile;
+    challengeId: string;
+    userId: string;
+    cycleNumber: number;
+};
+
+type UploadCheckinProofResult = {
+    evidenceUrl: string;
+    publicId: string;
+};
+
+const MAX_PROOF_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 
 const ALLOWED_IMAGE_TYPES = new Set([
     'image/jpeg',
@@ -11,72 +31,67 @@ const ALLOWED_IMAGE_TYPES = new Set([
     'image/webp',
 ]);
 
-export type UploadedFile = FormDataEntryValue & {
-    size: number;
-    type: string;
-    arrayBuffer: () => Promise<ArrayBuffer>;
-};
+function ensureCloudinaryConfigured() {
+    const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+    const apiKey = process.env.CLOUDINARY_API_KEY;
+    const apiSecret = process.env.CLOUDINARY_API_SECRET;
 
-export class ProofUploadError extends Error {
-    constructor(
-        message: string,
-        readonly code: 'VALIDATION' | 'STORAGE'
-    ) {
-        super(message);
-        this.name = 'ProofUploadError';
+    if (!cloudName || !apiKey || !apiSecret) {
+        throw new Error('Cloudinary environment variables are not configured');
     }
-}
 
-type UploadCheckinProofInput = {
-    file: UploadedFile;
-    challengeId: string;
-    userId: string;
-    cycleNumber: number;
-    requestOrigin: string;
-};
+    cloudinary.config({
+        cloud_name: cloudName,
+        api_key: apiKey,
+        api_secret: apiSecret,
+        secure: true,
+    });
+}
 
 function sanitizePathSegment(value: string): string {
     return value.replace(/[^a-zA-Z0-9_-]/g, '_');
 }
 
-function getExtensionFromMimeType(mimeType: string): string {
-    switch (mimeType) {
-        case 'image/jpeg':
-        case 'image/jpg':
-            return 'jpg';
-        case 'image/png':
-            return 'png';
-        case 'image/webp':
-            return 'webp';
-        default:
-            return 'jpg';
-    }
-}
-
-function assertValidProofFile(file: UploadedFile): void {
-    if (!file) {
-        throw new ProofUploadError('Proof image is required', 'VALIDATION');
-    }
-
+function validateProofFile(file: UploadedFile): string | null {
     if (file.size <= 0) {
-        throw new ProofUploadError('Proof image is empty', 'VALIDATION');
+        return 'Proof image is empty';
     }
 
     if (file.size > MAX_PROOF_FILE_SIZE_BYTES) {
-        throw new ProofUploadError('Proof image must be smaller than 5MB', 'VALIDATION');
+        return 'Proof image must be smaller than 5MB';
     }
 
     if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
-        throw new ProofUploadError('Only JPG, PNG, and WEBP images are supported', 'VALIDATION');
+        return 'Only JPG, PNG, and WEBP images are supported';
     }
+
+    return null;
 }
 
-function getUploadPublicBaseUrl(requestOrigin: string): string {
-    return (
-        process.env.UPLOAD_PUBLIC_BASE_URL ??
-        process.env.NEXT_PUBLIC_UPLOAD_PUBLIC_BASE_URL ??
-        requestOrigin
-    ).replace(/\/+$/, '');
+function uploadBufferToCloudinary(
+    buffer: Buffer,
+    options: UploadApiOptions,
+): Promise<UploadApiResponse> {
+    return new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+            options,
+            (error, result) => {
+                if (error) {
+                    reject(error);
+                    return;
+                }
+
+                if (!result) {
+                    reject(new Error('Cloudinary upload returned no result'));
+                    return;
+                }
+
+                resolve(result);
+            },
+        );
+
+        uploadStream.end(buffer);
+    });
 }
 
 export async function uploadCheckinProof({
@@ -84,47 +99,43 @@ export async function uploadCheckinProof({
     challengeId,
     userId,
     cycleNumber,
-    requestOrigin,
-}: UploadCheckinProofInput): Promise<string> {
-    assertValidProofFile(file);
+}: UploadCheckinProofParams): Promise<UploadCheckinProofResult> {
+    ensureCloudinaryConfigured();
+
+    const validationError = validateProofFile(file);
+
+    if (validationError) {
+        throw new Error(validationError);
+    }
+
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
 
     const safeChallengeId = sanitizePathSegment(challengeId);
     const safeUserId = sanitizePathSegment(userId);
-    const extension = getExtensionFromMimeType(file.type);
 
-    const relativeDir = path.join(
-        'uploads',
-        'checkins',
-        safeChallengeId,
-        `cycle-${cycleNumber}`
-    );
+    const folder = `snap-or-slap/checkins/${safeChallengeId}/cycle-${cycleNumber}`;
+    const publicId = `${safeUserId}-${Date.now()}`;
 
-    const absoluteDir = path.join(process.cwd(), 'public', relativeDir);
+    const result = await uploadBufferToCloudinary(buffer, {
+        folder,
+        public_id: publicId,
+        resource_type: 'image',
+        overwrite: false,
+        unique_filename: true,
+        use_filename: false,
+    });
 
-    try {
-        await mkdir(absoluteDir, { recursive: true });
+    console.log('[CHECKIN_PROOF_UPLOAD_SUCCESS]', {
+        challengeId,
+        userId,
+        cycleNumber,
+        evidenceUrl: result.secure_url,
+        publicId: result.public_id,
+    });
 
-        const filename = `${safeUserId}-${Date.now()}-${randomUUID()}.${extension}`;
-        const absoluteFilePath = path.join(absoluteDir, filename);
-
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-
-        await writeFile(absoluteFilePath, buffer);
-
-        const publicPath = `/${relativeDir.replaceAll(path.sep, '/')}/${filename}`;
-
-        const publicBaseUrl = getUploadPublicBaseUrl(requestOrigin);
-
-        return `${publicBaseUrl}${publicPath}`;
-    } catch (error) {
-        console.error('[CHECKIN_UPLOAD_ERROR]', {
-            challengeId,
-            userId,
-            cycleNumber,
-            error,
-        });
-
-        throw new ProofUploadError('Could not upload proof image', 'STORAGE');
-    }
+    return {
+        evidenceUrl: result.secure_url,
+        publicId: result.public_id,
+    };
 }

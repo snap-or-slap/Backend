@@ -3,9 +3,8 @@ import { query } from '@/lib/db';
 import { createCheckinSchema } from '@/lib/schemas/checkin';
 import { getCurrentCycle } from '@/lib/services/checkinService';
 import {
-	ProofUploadError,
-	type UploadedFile,
 	uploadCheckinProof,
+	type UploadedFile,
 } from '@/lib/services/proofUploadService';
 
 export const runtime = 'nodejs';
@@ -23,7 +22,6 @@ function getCaptionFromFormData(value: FormDataEntryValue | null): string | null
 
 	return caption;
 }
-
 function isUploadedFile(value: FormDataEntryValue | null): value is UploadedFile {
 	return (
 		!!value &&
@@ -42,10 +40,8 @@ async function resolveCheckinPayload(params: {
 	challengeId: string;
 	userId: string;
 	cycleNumber: number;
-	requestOrigin: string;
 }) {
-	const { req, challengeId, userId, cycleNumber, requestOrigin } = params;
-	const contentType = req.headers.get('content-type') || '';
+	const { req, challengeId, userId, cycleNumber } = params; const contentType = req.headers.get('content-type') || '';
 
 	if (contentType.includes('multipart/form-data')) {
 		let formData: FormData;
@@ -93,12 +89,11 @@ async function resolveCheckinPayload(params: {
 		}
 
 		try {
-			const evidenceUrl = await uploadCheckinProof({
+			const { evidenceUrl } = await uploadCheckinProof({
 				file: proof,
 				challengeId,
 				userId,
 				cycleNumber,
-				requestOrigin,
 			});
 
 			return {
@@ -107,18 +102,19 @@ async function resolveCheckinPayload(params: {
 				caption,
 			};
 		} catch (error) {
-			const isUploadError = error instanceof ProofUploadError;
+			const message =
+				error instanceof Error ? error.message : 'Could not upload proof image';
+
+			const isValidationError =
+				message.includes('empty') ||
+				message.includes('smaller than') ||
+				message.includes('supported');
 
 			return {
 				ok: false as const,
 				response: NextResponse.json(
-					{
-						error:
-							isUploadError || error instanceof Error
-								? error.message
-								: 'Could not upload proof image',
-					},
-					{ status: isUploadError && error.code === 'VALIDATION' ? 400 : 500 }
+					{ error: message },
+					{ status: isValidationError ? 400 : 500 }
 				),
 			};
 		}
@@ -208,7 +204,6 @@ export async function POST(
 			challengeId: id,
 			userId,
 			cycleNumber,
-			requestOrigin: requestUrl.origin,
 		});
 
 		if (!resolvedPayload.ok) {
