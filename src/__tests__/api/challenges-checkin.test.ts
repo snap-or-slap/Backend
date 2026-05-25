@@ -84,7 +84,14 @@ describe('POST /api/challenges/:id/checkins', () => {
 		const { POST } = require('@/app/api/challenges/[id]/checkins/route');
 		const req = new Request(
 			`http://localhost/api/challenges/${CHALLENGE_ID}/checkins?user_id=${UUID1}`,
-			{ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ caption: 'Day 4!' }) }
+			{
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					evidenceUrl: 'https://example.com/proofs/day-4.jpg',
+					caption: 'Day 4!',
+				}),
+			}
 		);
 		const res = await POST(req, { params: Promise.resolve({ id: CHALLENGE_ID }) });
 		const body = await res.json();
@@ -111,7 +118,14 @@ describe('POST /api/challenges/:id/checkins', () => {
 		const { POST } = require('@/app/api/challenges/[id]/checkins/route');
 		const req = new Request(
 			`http://localhost/api/challenges/${CHALLENGE_ID}/checkins?user_id=${UUID1}`,
-			{ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ caption: 'Day 4!' }) }
+			{
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					evidenceUrl: 'https://example.com/proofs/day-4.jpg',
+					caption: 'Day 4!',
+				}),
+			}
 		);
 		const res = await POST(req, { params: Promise.resolve({ id: CHALLENGE_ID }) });
 		const body = await res.json();

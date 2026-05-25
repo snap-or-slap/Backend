@@ -1,39 +1,14 @@
-import { randomUUID } from 'crypto';
-import { mkdir, writeFile } from 'fs/promises';
-import path from 'path';
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { createCheckinSchema } from '@/lib/schemas/checkin';
 import { getCurrentCycle } from '@/lib/services/checkinService';
+import {
+	ProofUploadError,
+	type UploadedFile,
+	uploadCheckinProof,
+} from '@/lib/services/proofUploadService';
 
 export const runtime = 'nodejs';
-
-const MAX_PROOF_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
-
-const ALLOWED_IMAGE_TYPES = new Set([
-	'image/jpeg',
-	'image/jpg',
-	'image/png',
-	'image/webp',
-]);
-
-function sanitizePathSegment(value: string): string {
-	return value.replace(/[^a-zA-Z0-9_-]/g, '_');
-}
-
-function getExtensionFromMimeType(mimeType: string): string {
-	switch (mimeType) {
-		case 'image/jpeg':
-		case 'image/jpg':
-			return 'jpg';
-		case 'image/png':
-			return 'png';
-		case 'image/webp':
-			return 'webp';
-		default:
-			return 'jpg';
-	}
-}
 
 function getCaptionFromFormData(value: FormDataEntryValue | null): string | null {
 	if (typeof value !== 'string') {
@@ -49,62 +24,17 @@ function getCaptionFromFormData(value: FormDataEntryValue | null): string | null
 	return caption;
 }
 
-function validateProofFile(file: File): string | null {
-	if (file.size <= 0) {
-		return 'Proof image is empty';
-	}
-
-	if (file.size > MAX_PROOF_FILE_SIZE_BYTES) {
-		return 'Proof image must be smaller than 5MB';
-	}
-
-	if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
-		return 'Only JPG, PNG, and WEBP images are supported';
-	}
-
-	return null;
-}
-
-async function saveProofImage(params: {
-	file: File;
-	challengeId: string;
-	userId: string;
-	cycleNumber: number;
-	requestOrigin: string;
-}) {
-	const { file, challengeId, userId, cycleNumber, requestOrigin } = params;
-
-	const validationError = validateProofFile(file);
-	if (validationError) {
-		throw new Error(validationError);
-	}
-
-	const safeChallengeId = sanitizePathSegment(challengeId);
-	const safeUserId = sanitizePathSegment(userId);
-	const extension = getExtensionFromMimeType(file.type);
-
-	const relativeDir = path.join(
-		'uploads',
-		'checkins',
-		safeChallengeId,
-		`cycle-${cycleNumber}`
+function isUploadedFile(value: FormDataEntryValue | null): value is UploadedFile {
+	return (
+		!!value &&
+		typeof value === 'object' &&
+		'arrayBuffer' in value &&
+		typeof (value as { arrayBuffer?: unknown }).arrayBuffer === 'function' &&
+		'size' in value &&
+		typeof (value as { size?: unknown }).size === 'number' &&
+		'type' in value &&
+		typeof (value as { type?: unknown }).type === 'string'
 	);
-
-	const absoluteDir = path.join(process.cwd(), 'public', relativeDir);
-
-	await mkdir(absoluteDir, { recursive: true });
-
-	const filename = `${safeUserId}-${Date.now()}-${randomUUID()}.${extension}`;
-	const absoluteFilePath = path.join(absoluteDir, filename);
-
-	const arrayBuffer = await file.arrayBuffer();
-	const buffer = Buffer.from(arrayBuffer);
-
-	await writeFile(absoluteFilePath, buffer);
-
-	const publicPath = `/${relativeDir.replaceAll(path.sep, '/')}/${filename}`;
-
-	return new URL(publicPath, requestOrigin).toString();
 }
 
 async function resolveCheckinPayload(params: {
@@ -118,11 +48,31 @@ async function resolveCheckinPayload(params: {
 	const contentType = req.headers.get('content-type') || '';
 
 	if (contentType.includes('multipart/form-data')) {
-		const formData = await req.formData();
+		let formData: FormData;
+
+		try {
+			formData = await req.formData();
+		} catch (error) {
+			console.error('[CHECKIN_MULTIPART_PARSE_ERROR]', {
+				challengeId,
+				userId,
+				cycleNumber,
+				error,
+			});
+
+			return {
+				ok: false as const,
+				response: NextResponse.json(
+					{ error: 'Invalid multipart form data' },
+					{ status: 400 }
+				),
+			};
+		}
+
 		const proof = formData.get('proof');
 		const caption = getCaptionFromFormData(formData.get('caption'));
 
-		if (!(proof instanceof File)) {
+		if (!isUploadedFile(proof)) {
 			return {
 				ok: false as const,
 				response: NextResponse.json(
@@ -143,7 +93,7 @@ async function resolveCheckinPayload(params: {
 		}
 
 		try {
-			const evidenceUrl = await saveProofImage({
+			const evidenceUrl = await uploadCheckinProof({
 				file: proof,
 				challengeId,
 				userId,
@@ -157,16 +107,18 @@ async function resolveCheckinPayload(params: {
 				caption,
 			};
 		} catch (error) {
+			const isUploadError = error instanceof ProofUploadError;
+
 			return {
 				ok: false as const,
 				response: NextResponse.json(
 					{
 						error:
-							error instanceof Error
+							isUploadError || error instanceof Error
 								? error.message
 								: 'Could not upload proof image',
 					},
-					{ status: 400 }
+					{ status: isUploadError && error.code === 'VALIDATION' ? 400 : 500 }
 				),
 			};
 		}
@@ -204,104 +156,132 @@ export async function POST(
 	req: NextRequest,
 	{ params }: { params: Promise<{ id: string }> }
 ) {
-	const { id } = await params;
-	const requestUrl = new URL(req.url);
-	const userId = requestUrl.searchParams.get('user_id');
+	try {
+		const { id } = await params;
+		const requestUrl = new URL(req.url);
+		const userId = requestUrl.searchParams.get('user_id');
 
-	if (!userId) {
-		return NextResponse.json({ error: 'user_id query param is required' }, { status: 400 });
-	}
+		if (!userId) {
+			return NextResponse.json({ error: 'user_id query param is required' }, { status: 400 });
+		}
 
-	// Check membership + challenge info
-	const { rows: membership } = await query(
-		`SELECT cm.status, c.status AS challenge_status, c.start_at, c.duration_days, c.reset_time, c.hearts_left
-		 FROM challenge_members cm
-		 JOIN challenges c ON c.id = cm.challenge_id
-		 WHERE cm.challenge_id = $1 AND cm.user_id = $2`,
-		[id, userId]
-	);
+		// Check membership + challenge info
+		const { rows: membership } = await query(
+			`SELECT cm.status, c.status AS challenge_status, c.start_at, c.duration_days, c.reset_time, c.hearts_left
+			 FROM challenge_members cm
+			 JOIN challenges c ON c.id = cm.challenge_id
+			 WHERE cm.challenge_id = $1 AND cm.user_id = $2`,
+			[id, userId]
+		);
 
-	if (membership.length === 0 || membership[0].status !== 'accepted') {
-		return NextResponse.json({ error: 'Not an accepted member of this challenge' }, { status: 403 });
-	}
+		if (membership.length === 0 || membership[0].status !== 'accepted') {
+			return NextResponse.json({ error: 'Not an accepted member of this challenge' }, { status: 403 });
+		}
 
-	if (membership[0].challenge_status !== 'active') {
-		return NextResponse.json({ error: 'Challenge is not active' }, { status: 409 });
-	}
+		if (membership[0].challenge_status !== 'active') {
+			return NextResponse.json({ error: 'Challenge is not active' }, { status: 409 });
+		}
 
-	const cycleNumber = getCurrentCycle(membership[0].start_at);
+		const cycleNumber = getCurrentCycle(membership[0].start_at);
 
-	if (cycleNumber < 1) {
-		return NextResponse.json({ error: 'Challenge has not started yet' }, { status: 400 });
-	}
+		if (cycleNumber < 1) {
+			return NextResponse.json({ error: 'Challenge has not started yet' }, { status: 400 });
+		}
 
-	if (cycleNumber > membership[0].duration_days) {
-		return NextResponse.json({ error: 'Challenge has ended' }, { status: 400 });
-	}
+		if (cycleNumber > membership[0].duration_days) {
+			return NextResponse.json({ error: 'Challenge has ended' }, { status: 400 });
+		}
 
-	// Check duplicate checkin for this cycle before parsing/uploading the file.
-	// This avoids saving an orphan proof image when the user has already checked in.
-	const { rows: existing } = await query(
-		`SELECT id FROM checkins WHERE challenge_id = $1 AND user_id = $2 AND cycle_number = $3`,
-		[id, userId, cycleNumber]
-	);
+		// Check duplicate checkin for this cycle before parsing/uploading the file.
+		// This avoids saving an orphan proof image when the user has already checked in.
+		const { rows: existing } = await query(
+			`SELECT id FROM checkins WHERE challenge_id = $1 AND user_id = $2 AND cycle_number = $3`,
+			[id, userId, cycleNumber]
+		);
 
-	if (existing.length > 0) {
-		return NextResponse.json({ error: 'Already checked in for this cycle' }, { status: 409 });
-	}
+		if (existing.length > 0) {
+			return NextResponse.json({ error: 'Already checked in for this cycle' }, { status: 409 });
+		}
 
-	const resolvedPayload = await resolveCheckinPayload({
-		req,
-		challengeId: id,
-		userId,
-		cycleNumber,
-		requestOrigin: requestUrl.origin,
-	});
+		const resolvedPayload = await resolveCheckinPayload({
+			req,
+			challengeId: id,
+			userId,
+			cycleNumber,
+			requestOrigin: requestUrl.origin,
+		});
 
-	if (!resolvedPayload.ok) {
-		return resolvedPayload.response;
-	}
+		if (!resolvedPayload.ok) {
+			return resolvedPayload.response;
+		}
 
-	if (!resolvedPayload.evidenceUrl) {
+		if (!resolvedPayload.evidenceUrl) {
+			return NextResponse.json(
+				{ error: 'Check-in proof image is required' },
+				{ status: 400 }
+			);
+		}
+
+		// Insert checkin
+		let checkin: unknown;
+
+		try {
+			const { rows } = await query(
+				`INSERT INTO checkins (challenge_id, user_id, cycle_number, evidence_url, caption)
+				 VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+				[id, userId, cycleNumber, resolvedPayload.evidenceUrl, resolvedPayload.caption]
+			);
+
+			checkin = rows[0];
+		} catch (error) {
+			console.error('[CHECKIN_INSERT_ERROR]', {
+				challengeId: id,
+				userId,
+				cycleNumber,
+				error,
+			});
+			throw error;
+		}
+
+		// Squad status for current cycle
+		const { rows: [squadStatus] } = await query(
+			`SELECT
+			   COUNT(*) FILTER (WHERE ci.id IS NOT NULL)::int AS members_checked_in,
+			   COUNT(*)::int AS members_total
+			 FROM challenge_members cm
+			 LEFT JOIN checkins ci ON ci.challenge_id = cm.challenge_id AND ci.user_id = cm.user_id AND ci.cycle_number = $2
+			 WHERE cm.challenge_id = $1 AND cm.status = 'accepted'`,
+			[id, cycleNumber]
+		);
+
+		// Total checkins for this user
+		const { rows: [{ total }] } = await query(
+			`SELECT COUNT(*)::int AS total FROM checkins WHERE challenge_id = $1 AND user_id = $2`,
+			[id, userId]
+		);
+
+		return NextResponse.json({
+			checkin,
+			total_checkins: Number(total),
+			squad_status: {
+				hearts_left: membership[0].hearts_left,
+				members_checked_in: Number(squadStatus.members_checked_in),
+				members_total: Number(squadStatus.members_total),
+			},
+		}, { status: 201 });
+	} catch (error) {
+		console.error('[CHECKIN_POST_ERROR]', error);
+
 		return NextResponse.json(
-			{ error: 'Check-in proof image is required' },
-			{ status: 400 }
+			{
+				error: 'Could not submit check-in',
+				...(process.env.NODE_ENV === 'development' && error instanceof Error
+					? { details: error.message }
+					: {}),
+			},
+			{ status: 500 }
 		);
 	}
-
-	// Insert checkin
-	const { rows: [checkin] } = await query(
-		`INSERT INTO checkins (challenge_id, user_id, cycle_number, evidence_url, caption)
-		 VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-		[id, userId, cycleNumber, resolvedPayload.evidenceUrl, resolvedPayload.caption]
-	);
-
-	// Squad status for current cycle
-	const { rows: [squadStatus] } = await query(
-		`SELECT
-		   COUNT(*) FILTER (WHERE ci.id IS NOT NULL)::int AS members_checked_in,
-		   COUNT(*)::int AS members_total
-		 FROM challenge_members cm
-		 LEFT JOIN checkins ci ON ci.challenge_id = cm.challenge_id AND ci.user_id = cm.user_id AND ci.cycle_number = $2
-		 WHERE cm.challenge_id = $1 AND cm.status = 'accepted'`,
-		[id, cycleNumber]
-	);
-
-	// Total checkins for this user
-	const { rows: [{ total }] } = await query(
-		`SELECT COUNT(*)::int AS total FROM checkins WHERE challenge_id = $1 AND user_id = $2`,
-		[id, userId]
-	);
-
-	return NextResponse.json({
-		checkin,
-		total_checkins: Number(total),
-		squad_status: {
-			hearts_left: membership[0].hearts_left,
-			members_checked_in: Number(squadStatus.members_checked_in),
-			members_total: Number(squadStatus.members_total),
-		},
-	}, { status: 201 });
 }
 
 // GET — Gallery: paginated checkins with user info

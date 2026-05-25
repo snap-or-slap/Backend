@@ -11,13 +11,33 @@ const ALLOWED_IMAGE_TYPES = new Set([
     'image/webp',
 ]);
 
+export type UploadedFile = FormDataEntryValue & {
+    size: number;
+    type: string;
+    arrayBuffer: () => Promise<ArrayBuffer>;
+};
+
+export class ProofUploadError extends Error {
+    constructor(
+        message: string,
+        readonly code: 'VALIDATION' | 'STORAGE'
+    ) {
+        super(message);
+        this.name = 'ProofUploadError';
+    }
+}
+
 type UploadCheckinProofInput = {
-    file: File;
+    file: UploadedFile;
     challengeId: string;
     userId: string;
     cycleNumber: number;
     requestOrigin: string;
 };
+
+function sanitizePathSegment(value: string): string {
+    return value.replace(/[^a-zA-Z0-9_-]/g, '_');
+}
 
 function getExtensionFromMimeType(mimeType: string): string {
     switch (mimeType) {
@@ -33,21 +53,21 @@ function getExtensionFromMimeType(mimeType: string): string {
     }
 }
 
-function assertValidProofFile(file: File): void {
+function assertValidProofFile(file: UploadedFile): void {
     if (!file) {
-        throw new Error('Proof image is required');
+        throw new ProofUploadError('Proof image is required', 'VALIDATION');
     }
 
     if (file.size <= 0) {
-        throw new Error('Proof image is empty');
+        throw new ProofUploadError('Proof image is empty', 'VALIDATION');
     }
 
     if (file.size > MAX_PROOF_FILE_SIZE_BYTES) {
-        throw new Error('Proof image must be smaller than 5MB');
+        throw new ProofUploadError('Proof image must be smaller than 5MB', 'VALIDATION');
     }
 
     if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
-        throw new Error('Only JPG, PNG, and WEBP images are supported');
+        throw new ProofUploadError('Only JPG, PNG, and WEBP images are supported', 'VALIDATION');
     }
 }
 
@@ -68,30 +88,43 @@ export async function uploadCheckinProof({
 }: UploadCheckinProofInput): Promise<string> {
     assertValidProofFile(file);
 
+    const safeChallengeId = sanitizePathSegment(challengeId);
+    const safeUserId = sanitizePathSegment(userId);
     const extension = getExtensionFromMimeType(file.type);
 
     const relativeDir = path.join(
         'uploads',
         'checkins',
-        challengeId,
+        safeChallengeId,
         `cycle-${cycleNumber}`
     );
 
     const absoluteDir = path.join(process.cwd(), 'public', relativeDir);
 
-    await mkdir(absoluteDir, { recursive: true });
+    try {
+        await mkdir(absoluteDir, { recursive: true });
 
-    const filename = `${userId}-${Date.now()}-${randomUUID()}.${extension}`;
-    const absoluteFilePath = path.join(absoluteDir, filename);
+        const filename = `${safeUserId}-${Date.now()}-${randomUUID()}.${extension}`;
+        const absoluteFilePath = path.join(absoluteDir, filename);
 
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
 
-    await writeFile(absoluteFilePath, buffer);
+        await writeFile(absoluteFilePath, buffer);
 
-    const publicPath = `/${relativeDir.replaceAll(path.sep, '/')}/${filename}`;
+        const publicPath = `/${relativeDir.replaceAll(path.sep, '/')}/${filename}`;
 
-    const publicBaseUrl = getUploadPublicBaseUrl(requestOrigin);
+        const publicBaseUrl = getUploadPublicBaseUrl(requestOrigin);
 
-    return `${publicBaseUrl}${publicPath}`;
+        return `${publicBaseUrl}${publicPath}`;
+    } catch (error) {
+        console.error('[CHECKIN_UPLOAD_ERROR]', {
+            challengeId,
+            userId,
+            cycleNumber,
+            error,
+        });
+
+        throw new ProofUploadError('Could not upload proof image', 'STORAGE');
+    }
 }
