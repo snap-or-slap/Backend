@@ -18,7 +18,7 @@
 
     "typecheck": "tsc --noEmit",
 
-    "db:migrate": "node -r ts-node/register src/lib/db/migrate.ts"
+    "db:migrate": "ts-node -P tsconfig.migrate.json scripts/migrate.ts"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
