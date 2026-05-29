@@ -5,12 +5,20 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build && npm run copy-standalone-assets",
-    "copy-standalone-assets": "node scripts/copy-standalone-assets.js",
+    "copy-standalone-assets": "mkdir -p .next/standalone/.next && cp -r .next/static .next/standalone/.next/static && cp -r public .next/standalone/public",
     "start": "HOSTNAME=0.0.0.0 node .next/standalone/server.js",
+
     "lint": "next lint",
+
     "test": "jest",
     "test:watch": "jest --watch",
-    "db:migrate": "node scripts/migrate.js"
+    "test:ci": "jest --runInBand --ci",
+    "test:coverage": "jest --coverage --runInBand",
+    "test:coverage:ci": "jest --coverage --runInBand --ci",
+
+    "typecheck": "tsc --noEmit",
+
+    "db:migrate": "node -r ts-node/register src/lib/db/migrate.ts"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

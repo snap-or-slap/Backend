@@ -17,9 +17,13 @@ beforeAll(() => {
 });
 
 const mockQuery = jest.fn();
+const mockUploadCheckinProof = jest.fn();
 jest.mock('@/lib/db', () => ({
 	pool: { query: jest.fn(), end: jest.fn() },
 	query: (...args: unknown[]) => mockQuery(...args),
+}));
+jest.mock('@/lib/services/proofUploadService', () => ({
+	uploadCheckinProof: (...args: unknown[]) => mockUploadCheckinProof(...args),
 }));
 
 // ============================================
@@ -46,10 +50,40 @@ describe('POST /api/challenges/:id/checkins', () => {
 	beforeEach(() => {
 		jest.resetModules();
 		mockQuery.mockReset();
+		mockUploadCheckinProof.mockReset();
+	});
+
+	it('should reject when user_id query param is missing', async () => {
+		const { POST } = require('@/app/api/challenges/[id]/checkins/route');
+		const req = new Request(
+			`http://localhost/api/challenges/${CHALLENGE_ID}/checkins`,
+			{ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }
+		);
+
+		const res = await POST(req, { params: Promise.resolve({ id: CHALLENGE_ID }) });
+		const body = await res.json();
+
+		expect(res.status).toBe(400);
+		expect(body.error).toContain('user_id');
+		expect(mockQuery).not.toHaveBeenCalled();
 	});
 
 	it('should reject if user is not a member', async () => {
 		mockQuery.mockResolvedValueOnce({ rows: [] });
+
+		const { POST } = require('@/app/api/challenges/[id]/checkins/route');
+		const req = new Request(
+			`http://localhost/api/challenges/${CHALLENGE_ID}/checkins?user_id=${UUID1}`,
+			{ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }
+		);
+		const res = await POST(req, { params: Promise.resolve({ id: CHALLENGE_ID }) });
+		expect(res.status).toBe(403);
+	});
+
+	it('should reject if user is a member but not accepted', async () => {
+		mockQuery.mockResolvedValueOnce({
+			rows: [{ status: 'invited', challenge_status: 'active', start_at: THREE_DAYS_AGO, duration_days: 30, reset_time: '06:00', hearts_left: 3 }],
+		});
 
 		const { POST } = require('@/app/api/challenges/[id]/checkins/route');
 		const req = new Request(
@@ -72,6 +106,42 @@ describe('POST /api/challenges/:id/checkins', () => {
 		);
 		const res = await POST(req, { params: Promise.resolve({ id: CHALLENGE_ID }) });
 		expect(res.status).toBe(409);
+	});
+
+	it('should reject if challenge has not started yet', async () => {
+		const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+		mockQuery.mockResolvedValueOnce({
+			rows: [{ status: 'accepted', challenge_status: 'active', start_at: tomorrow, duration_days: 30, reset_time: '06:00', hearts_left: 3 }],
+		});
+
+		const { POST } = require('@/app/api/challenges/[id]/checkins/route');
+		const req = new Request(
+			`http://localhost/api/challenges/${CHALLENGE_ID}/checkins?user_id=${UUID1}`,
+			{ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ evidenceUrl: 'https://example.com/proof.jpg' }) }
+		);
+		const res = await POST(req, { params: Promise.resolve({ id: CHALLENGE_ID }) });
+		const body = await res.json();
+
+		expect(res.status).toBe(400);
+		expect(body.error).toContain('not started');
+	});
+
+	it('should reject if challenge has ended', async () => {
+		const oldStart = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
+		mockQuery.mockResolvedValueOnce({
+			rows: [{ status: 'accepted', challenge_status: 'active', start_at: oldStart, duration_days: 1, reset_time: '06:00', hearts_left: 3 }],
+		});
+
+		const { POST } = require('@/app/api/challenges/[id]/checkins/route');
+		const req = new Request(
+			`http://localhost/api/challenges/${CHALLENGE_ID}/checkins?user_id=${UUID1}`,
+			{ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ evidenceUrl: 'https://example.com/proof.jpg' }) }
+		);
+		const res = await POST(req, { params: Promise.resolve({ id: CHALLENGE_ID }) });
+		const body = await res.json();
+
+		expect(res.status).toBe(400);
+		expect(body.error).toContain('ended');
 	});
 
 	it('should reject if already checked in this cycle', async () => {
@@ -97,6 +167,49 @@ describe('POST /api/challenges/:id/checkins', () => {
 		const body = await res.json();
 		expect(res.status).toBe(409);
 		expect(body.error).toContain('Already checked in');
+	});
+
+	it('should reject invalid JSON checkin payloads', async () => {
+		mockQuery
+			.mockResolvedValueOnce({
+				rows: [{ status: 'accepted', challenge_status: 'active', start_at: THREE_DAYS_AGO, duration_days: 30, reset_time: '06:00', hearts_left: 3 }],
+			})
+			.mockResolvedValueOnce({ rows: [] });
+
+		const { POST } = require('@/app/api/challenges/[id]/checkins/route');
+		const req = new Request(
+			`http://localhost/api/challenges/${CHALLENGE_ID}/checkins?user_id=${UUID1}`,
+			{
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ evidenceUrl: 'not-a-url' }),
+			}
+		);
+		const res = await POST(req, { params: Promise.resolve({ id: CHALLENGE_ID }) });
+		const body = await res.json();
+
+		expect(res.status).toBe(400);
+		expect(body.error).toBe('Validation failed');
+		expect(Array.isArray(body.details)).toBe(true);
+	});
+
+	it('should require proof image when JSON payload has no evidence URL', async () => {
+		mockQuery
+			.mockResolvedValueOnce({
+				rows: [{ status: 'accepted', challenge_status: 'active', start_at: THREE_DAYS_AGO, duration_days: 30, reset_time: '06:00', hearts_left: 3 }],
+			})
+			.mockResolvedValueOnce({ rows: [] });
+
+		const { POST } = require('@/app/api/challenges/[id]/checkins/route');
+		const req = new Request(
+			`http://localhost/api/challenges/${CHALLENGE_ID}/checkins?user_id=${UUID1}`,
+			{ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{' }
+		);
+		const res = await POST(req, { params: Promise.resolve({ id: CHALLENGE_ID }) });
+		const body = await res.json();
+
+		expect(res.status).toBe(400);
+		expect(body.error).toBe('Check-in proof image is required');
 	});
 
 	it('should create checkin successfully', async () => {
@@ -135,6 +248,199 @@ describe('POST /api/challenges/:id/checkins', () => {
 		expect(body.squad_status.members_total).toBe(3);
 		expect(body.total_checkins).toBe(4);
 	});
+
+	it('should return 500 when checkin insert fails', async () => {
+		const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+		mockQuery
+			.mockResolvedValueOnce({
+				rows: [{ status: 'accepted', challenge_status: 'active', start_at: THREE_DAYS_AGO, duration_days: 30, reset_time: '06:00', hearts_left: 3 }],
+			})
+			.mockResolvedValueOnce({ rows: [] })
+			.mockRejectedValueOnce(new Error('insert failed'));
+
+		const { POST } = require('@/app/api/challenges/[id]/checkins/route');
+		const req = new Request(
+			`http://localhost/api/challenges/${CHALLENGE_ID}/checkins?user_id=${UUID1}`,
+			{
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ evidenceUrl: 'https://example.com/proofs/day-4.jpg' }),
+			}
+		);
+		const res = await POST(req, { params: Promise.resolve({ id: CHALLENGE_ID }) });
+		const body = await res.json();
+
+		expect(res.status).toBe(500);
+		expect(body.error).toBe('Could not submit check-in');
+		consoleErrorSpy.mockRestore();
+	});
+
+	it('should reject invalid multipart form data', async () => {
+		const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+		mockQuery
+			.mockResolvedValueOnce({
+				rows: [{ status: 'accepted', challenge_status: 'active', start_at: THREE_DAYS_AGO, duration_days: 30, reset_time: '06:00', hearts_left: 3 }],
+			})
+			.mockResolvedValueOnce({ rows: [] });
+
+		const { POST } = require('@/app/api/challenges/[id]/checkins/route');
+		const req = {
+			url: `http://localhost/api/challenges/${CHALLENGE_ID}/checkins?user_id=${UUID1}`,
+			headers: {
+				get: (name: string) => name.toLowerCase() === 'content-type' ? 'multipart/form-data; boundary=test' : null,
+			},
+			formData: jest.fn().mockRejectedValue(new Error('bad multipart')),
+		};
+		const res = await POST(req, { params: Promise.resolve({ id: CHALLENGE_ID }) });
+		const body = await res.json();
+
+		expect(res.status).toBe(400);
+		expect(body.error).toBe('Invalid multipart form data');
+		consoleErrorSpy.mockRestore();
+	});
+
+	it('should reject multipart checkins without proof file', async () => {
+		mockQuery
+			.mockResolvedValueOnce({
+				rows: [{ status: 'accepted', challenge_status: 'active', start_at: THREE_DAYS_AGO, duration_days: 30, reset_time: '06:00', hearts_left: 3 }],
+			})
+			.mockResolvedValueOnce({ rows: [] });
+
+		const formData = new FormData();
+		formData.append('caption', 'missing proof');
+
+		const { POST } = require('@/app/api/challenges/[id]/checkins/route');
+		const req = new Request(
+			`http://localhost/api/challenges/${CHALLENGE_ID}/checkins?user_id=${UUID1}`,
+			{ method: 'POST', body: formData }
+		);
+		const res = await POST(req, { params: Promise.resolve({ id: CHALLENGE_ID }) });
+		const body = await res.json();
+
+		expect(res.status).toBe(400);
+		expect(body.error).toBe('proof image file is required');
+	});
+
+	it('should reject multipart captions over the limit before upload', async () => {
+		mockQuery
+			.mockResolvedValueOnce({
+				rows: [{ status: 'accepted', challenge_status: 'active', start_at: THREE_DAYS_AGO, duration_days: 30, reset_time: '06:00', hearts_left: 3 }],
+			})
+			.mockResolvedValueOnce({ rows: [] });
+
+		const formData = new FormData();
+		formData.append('proof', new File(['fake image'], 'proof.png', { type: 'image/png' }));
+		formData.append('caption', 'a'.repeat(281));
+
+		const { POST } = require('@/app/api/challenges/[id]/checkins/route');
+		const req = new Request(
+			`http://localhost/api/challenges/${CHALLENGE_ID}/checkins?user_id=${UUID1}`,
+			{ method: 'POST', body: formData }
+		);
+		const res = await POST(req, { params: Promise.resolve({ id: CHALLENGE_ID }) });
+		const body = await res.json();
+
+		expect(res.status).toBe(400);
+		expect(body.error).toBe('Caption must be at most 280 characters');
+		expect(mockUploadCheckinProof).not.toHaveBeenCalled();
+	});
+
+	it('should map proof upload validation errors to 400', async () => {
+		mockQuery
+			.mockResolvedValueOnce({
+				rows: [{ status: 'accepted', challenge_status: 'active', start_at: THREE_DAYS_AGO, duration_days: 30, reset_time: '06:00', hearts_left: 3 }],
+			})
+			.mockResolvedValueOnce({ rows: [] });
+		mockUploadCheckinProof.mockRejectedValueOnce(new Error('Only JPG, PNG, and WEBP images are supported'));
+
+		const formData = new FormData();
+		formData.append('proof', new File(['fake image'], 'proof.gif', { type: 'image/gif' }));
+
+		const { POST } = require('@/app/api/challenges/[id]/checkins/route');
+		const req = new Request(
+			`http://localhost/api/challenges/${CHALLENGE_ID}/checkins?user_id=${UUID1}`,
+			{ method: 'POST', body: formData }
+		);
+		const res = await POST(req, { params: Promise.resolve({ id: CHALLENGE_ID }) });
+		const body = await res.json();
+
+		expect(res.status).toBe(400);
+		expect(body.error).toContain('supported');
+	});
+
+	it('should map unexpected proof upload errors to 500', async () => {
+		mockQuery
+			.mockResolvedValueOnce({
+				rows: [{ status: 'accepted', challenge_status: 'active', start_at: THREE_DAYS_AGO, duration_days: 30, reset_time: '06:00', hearts_left: 3 }],
+			})
+			.mockResolvedValueOnce({ rows: [] });
+		mockUploadCheckinProof.mockRejectedValueOnce(new Error('Cloudinary is unavailable'));
+
+		const formData = new FormData();
+		formData.append('proof', new File(['fake image'], 'proof.png', { type: 'image/png' }));
+
+		const { POST } = require('@/app/api/challenges/[id]/checkins/route');
+		const req = new Request(
+			`http://localhost/api/challenges/${CHALLENGE_ID}/checkins?user_id=${UUID1}`,
+			{ method: 'POST', body: formData }
+		);
+		const res = await POST(req, { params: Promise.resolve({ id: CHALLENGE_ID }) });
+		const body = await res.json();
+
+		expect(res.status).toBe(500);
+		expect(body.error).toBe('Cloudinary is unavailable');
+	});
+
+	it('should create checkin successfully from multipart proof and trimmed caption', async () => {
+		const now = new Date().toISOString();
+		mockQuery
+			.mockResolvedValueOnce({
+				rows: [{ status: 'accepted', challenge_status: 'active', start_at: THREE_DAYS_AGO, duration_days: 30, reset_time: '06:00', hearts_left: 2 }],
+			})
+			.mockResolvedValueOnce({ rows: [] })
+			.mockResolvedValueOnce({
+				rows: [{
+					id: CHECKIN_ID, challenge_id: CHALLENGE_ID, user_id: UUID1,
+					cycle_number: 4, evidence_url: 'https://cdn.example.com/proof.png', caption: 'proof done', checked_in_at: now,
+				}],
+			})
+			.mockResolvedValueOnce({ rows: [{ members_checked_in: '2', members_total: '3' }] })
+			.mockResolvedValueOnce({ rows: [{ total: '5' }] });
+		mockUploadCheckinProof.mockResolvedValueOnce({
+			evidenceUrl: 'https://cdn.example.com/proof.png',
+			publicId: 'proof-public-id',
+		});
+
+		const formData = new FormData();
+		formData.append('proof', new File(['fake image'], 'proof.png', { type: 'image/png' }));
+		formData.append('caption', '  proof done  ');
+
+		const { POST } = require('@/app/api/challenges/[id]/checkins/route');
+		const req = new Request(
+			`http://localhost/api/challenges/${CHALLENGE_ID}/checkins?user_id=${UUID1}`,
+			{ method: 'POST', body: formData }
+		);
+		const res = await POST(req, { params: Promise.resolve({ id: CHALLENGE_ID }) });
+		const body = await res.json();
+
+		expect(res.status).toBe(201);
+		expect(body.checkin.evidence_url).toBe('https://cdn.example.com/proof.png');
+		expect(mockUploadCheckinProof).toHaveBeenCalledWith(expect.objectContaining({
+			challengeId: CHALLENGE_ID,
+			userId: UUID1,
+			cycleNumber: expect.any(Number),
+		}));
+		const insertCall = mockQuery.mock.calls.find(
+			(call: unknown[]) => typeof call[0] === 'string' && (call[0] as string).includes('INSERT INTO checkins')
+		);
+		expect((insertCall as [string, unknown[]])[1]).toEqual([
+			CHALLENGE_ID,
+			UUID1,
+			expect.any(Number),
+			'https://cdn.example.com/proof.png',
+			'proof done',
+		]);
+	});
 });
 
 // ============================================
@@ -144,6 +450,19 @@ describe('GET /api/challenges/:id/checkins/today', () => {
 	beforeEach(() => {
 		jest.resetModules();
 		mockQuery.mockReset();
+		mockUploadCheckinProof.mockReset();
+	});
+
+	it('should return 404 when challenge does not exist', async () => {
+		mockQuery.mockResolvedValueOnce({ rows: [] });
+
+		const { GET } = require('@/app/api/challenges/[id]/checkins/route');
+		const req = new Request(`http://localhost/api/challenges/${CHALLENGE_ID}/checkins`);
+		const res = await GET(req, { params: Promise.resolve({ id: CHALLENGE_ID }) });
+		const body = await res.json();
+
+		expect(res.status).toBe(404);
+		expect(body.error).toBe('Challenge not found');
 	});
 
 	it('should return 404 if challenge not found', async () => {
@@ -228,6 +547,24 @@ describe('GET /api/challenges/:id/checkins (gallery)', () => {
 		expect(body.checkins).toHaveLength(2);
 		expect(body.total).toBe(5);
 		expect(body.page).toBe(1);
+	});
+
+	it('should clamp gallery page and limit query params', async () => {
+		mockQuery
+			.mockResolvedValueOnce({ rows: [{ status: 'completed' }] })
+			.mockResolvedValueOnce({ rows: [] })
+			.mockResolvedValueOnce({ rows: [{ total: '0' }] });
+
+		const { GET } = require('@/app/api/challenges/[id]/checkins/route');
+		const req = new Request(`http://localhost/api/challenges/${CHALLENGE_ID}/checkins?page=0&limit=999`);
+		const res = await GET(req, { params: Promise.resolve({ id: CHALLENGE_ID }) });
+		const body = await res.json();
+
+		expect(res.status).toBe(200);
+		expect(body.page).toBe(1);
+		expect(body.limit).toBe(50);
+		const listCall = mockQuery.mock.calls[1] as [string, unknown[]];
+		expect(listCall[1]).toEqual([CHALLENGE_ID, 50, 0]);
 	});
 
 	it('should filter by member_id', async () => {
