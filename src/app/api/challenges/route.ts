@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { createChallengeSchema } from '@/lib/schemas/challenge';
-import { transitionDueFormationChallenges } from '@/lib/services/cronService';
+import { transitionDueFormationChallenges, processHeartDeductions } from '@/lib/services/cronService';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -15,7 +15,9 @@ export async function GET(req: NextRequest) {
   const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)));
   const offset = (page - 1) * limit;
 
+  // Lazy evaluation: process state transitions before returning the list
   await transitionDueFormationChallenges();
+  await processHeartDeductions();
 
   let whereClause = `WHERE cm.user_id = $1 AND cm.status = 'accepted'`;
   const params: unknown[] = [userId];

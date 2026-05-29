@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { updateChallengeSchema } from '@/lib/schemas/challenge';
-import { transitionDueFormationChallenges } from '@/lib/services/cronService';
+import { transitionDueFormationChallenges, processHeartDeductions } from '@/lib/services/cronService';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -10,6 +10,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (userId) {
     await transitionDueFormationChallenges();
+    await processHeartDeductions();
   }
 
   const { rows } = await query(

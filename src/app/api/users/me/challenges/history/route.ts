@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import { processHeartDeductions } from '@/lib/services/cronService';
 
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
@@ -21,6 +22,9 @@ export async function GET(req: NextRequest) {
   const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') || '10', 10)));
   const offset = (page - 1) * limit;
   const resultFilter = searchParams.get('result');
+
+  // Lazy evaluation: ensure active challenges that have ended are transitioned to history
+  await processHeartDeductions();
 
   // Get lifetime stats
   const { rows: statsRows } = await query(
