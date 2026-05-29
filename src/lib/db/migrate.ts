@@ -24,7 +24,7 @@ async function migrate() {
 
   const pool = new Pool({
     connectionString: databaseUrl,
-    ssl: shouldUseSsl ? { rejectUnauthorized: false } : false,
+    ssl: shouldUseSsl,
   });
 
   try {

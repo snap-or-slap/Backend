@@ -3,7 +3,7 @@
 	"info": {
 		"title": "SOS App — Backend API",
 		"version": "0.10.0",
-		"description": "Snap or Slap challenge app. Sprint 9: History, Recreate & Milestones (challenge history detail, recreate from old challenge, lifetime stats, streak milestones). All endpoints return JSON. No auth — use ?user_id=UUID.\n\nTest accounts: alice@example.com / bob@example.com / charlie@example.com / diana@example.com / edward@example.com (password: Password123!)"
+		"description": "Snap or Slap challenge app backend API. All endpoints return JSON. Most application endpoints currently use ?user_id=UUID for the mobile/backend contract."
 	},
 	"servers": [
 		{
@@ -214,7 +214,7 @@
 								"properties": {
 									"refresh_token": {
 										"type": "string",
-										"example": "your-refresh-token-here"
+										"example": "example-value"
 									}
 								}
 							}
@@ -351,23 +351,6 @@
 					},
 					"404": {
 						"description": "User not found"
-					}
-				}
-			}
-		},
-		"/api/test-data": {
-			"get": {
-				"tags": [
-					"System"
-				],
-				"summary": "View all test data",
-				"description": "Returns all users, challenges, members, checkins from the database. Test in browser.",
-				"responses": {
-					"200": {
-						"description": "All test data"
-					},
-					"500": {
-						"description": "Database error"
 					}
 				}
 			}
@@ -2127,7 +2110,7 @@
 						"required": true,
 						"schema": {
 							"type": "string",
-							"example": "Bearer your-cron-secret"
+							"example": "example-value"
 						},
 						"description": "Bearer token with CRON_SECRET value"
 					}
@@ -2632,7 +2615,7 @@
 								"properties": {
 									"currentPassword": {
 										"type": "string",
-										"example": "Password123!"
+										"example": "ExamplePass123!"
 									},
 									"newPassword": {
 										"type": "string",
@@ -3135,7 +3118,11 @@
 										},
 										"result_banner": {
 											"type": "string",
-											"enum": ["CONGRATULATIONS", "VALIANT_EFFORT", "CANCELLED"],
+											"enum": [
+												"CONGRATULATIONS",
+												"VALIANT_EFFORT",
+												"CANCELLED"
+											],
 											"description": "Display banner based on challenge outcome"
 										},
 										"final_stats": {
@@ -3148,11 +3135,23 @@
 											"items": {
 												"type": "object",
 												"properties": {
-													"user_id": { "type": "string", "format": "uuid" },
-													"username": { "type": "string" },
-													"display_name": { "type": "string" },
-													"avatar_url": { "type": "string", "nullable": true },
-													"checkin_count": { "type": "integer" }
+													"user_id": {
+														"type": "string",
+														"format": "uuid"
+													},
+													"username": {
+														"type": "string"
+													},
+													"display_name": {
+														"type": "string"
+													},
+													"avatar_url": {
+														"type": "string",
+														"nullable": true
+													},
+													"checkin_count": {
+														"type": "integer"
+													}
 												}
 											}
 										},
@@ -3161,9 +3160,16 @@
 											"items": {
 												"type": "object",
 												"properties": {
-													"evidence_url": { "type": "string" },
-													"user_id": { "type": "string", "format": "uuid" },
-													"cycle_number": { "type": "integer" }
+													"evidence_url": {
+														"type": "string"
+													},
+													"user_id": {
+														"type": "string",
+														"format": "uuid"
+													},
+													"cycle_number": {
+														"type": "integer"
+													}
 												}
 											},
 											"maxItems": 6
@@ -3180,9 +3186,15 @@
 							}
 						}
 					},
-					"400": { "description": "Missing user_id" },
-					"404": { "description": "Challenge not found" },
-					"409": { "description": "Challenge is not yet finished" }
+					"400": {
+						"description": "Missing user_id"
+					},
+					"404": {
+						"description": "Challenge not found"
+					},
+					"409": {
+						"description": "Challenge is not yet finished"
+					}
 				}
 			}
 		},
@@ -3220,18 +3232,49 @@
 							"schema": {
 								"type": "object",
 								"properties": {
-									"title": { "type": "string", "description": "Override title (optional)" },
-									"description": { "type": "string", "nullable": true },
-									"duration_days": { "type": "integer", "minimum": 1 },
-									"frequency": { "type": "string", "enum": ["daily", "weekly", "custom"] },
-									"reset_time": { "type": "string", "example": "06:00:00" },
-									"total_hearts": { "type": "integer" },
-									"max_members": { "type": "integer" },
-									"is_private": { "type": "boolean" },
-									"cover_url": { "type": "string", "nullable": true },
+									"title": {
+										"type": "string",
+										"description": "Override title (optional)"
+									},
+									"description": {
+										"type": "string",
+										"nullable": true
+									},
+									"duration_days": {
+										"type": "integer",
+										"minimum": 1
+									},
+									"frequency": {
+										"type": "string",
+										"enum": [
+											"daily",
+											"weekly",
+											"custom"
+										]
+									},
+									"reset_time": {
+										"type": "string",
+										"example": "06:00:00"
+									},
+									"total_hearts": {
+										"type": "integer"
+									},
+									"max_members": {
+										"type": "integer"
+									},
+									"is_private": {
+										"type": "boolean"
+									},
+									"cover_url": {
+										"type": "string",
+										"nullable": true
+									},
 									"reinvite_user_ids": {
 										"type": "array",
-										"items": { "type": "string", "format": "uuid" },
+										"items": {
+											"type": "string",
+											"format": "uuid"
+										},
 										"description": "User IDs to reinvite (must be friends)"
 									}
 								}
@@ -3256,10 +3299,18 @@
 							}
 						}
 					},
-					"400": { "description": "Missing user_id or reinvite user is not a friend" },
-					"403": { "description": "User was not a member of old challenge" },
-					"404": { "description": "Old challenge not found" },
-					"409": { "description": "Old challenge is still active (not finished)" }
+					"400": {
+						"description": "Missing user_id or reinvite user is not a friend"
+					},
+					"403": {
+						"description": "User was not a member of old challenge"
+					},
+					"404": {
+						"description": "Old challenge not found"
+					},
+					"409": {
+						"description": "Old challenge is still active (not finished)"
+					}
 				}
 			}
 		},
@@ -3285,7 +3336,11 @@
 						"name": "result",
 						"schema": {
 							"type": "string",
-							"enum": ["success", "game_over", "cancelled"]
+							"enum": [
+								"success",
+								"game_over",
+								"cancelled"
+							]
 						},
 						"description": "Filter by result type. success=completed, game_over=failed, cancelled=cancelled"
 					},
@@ -3318,10 +3373,18 @@
 										"lifetime_stats": {
 											"type": "object",
 											"properties": {
-												"total_challenges": { "type": "integer" },
-												"total_completed": { "type": "integer" },
-												"best_streak": { "type": "integer" },
-												"total_checkins": { "type": "integer" }
+												"total_challenges": {
+													"type": "integer"
+												},
+												"total_completed": {
+													"type": "integer"
+												},
+												"best_streak": {
+													"type": "integer"
+												},
+												"total_checkins": {
+													"type": "integer"
+												}
 											}
 										},
 										"challenges": {
@@ -3329,30 +3392,67 @@
 											"items": {
 												"type": "object",
 												"properties": {
-													"id": { "type": "string", "format": "uuid" },
-													"title": { "type": "string" },
-													"status": { "type": "string" },
-													"end_reason": { "type": "string", "nullable": true },
-													"start_at": { "type": "string", "format": "date-time" },
-													"ended_at": { "type": "string", "format": "date-time", "nullable": true },
-													"current_step": { "type": "integer" },
-													"duration_days": { "type": "integer" },
-													"hearts_left": { "type": "integer" },
-													"member_count": { "type": "integer" },
-													"creator_username": { "type": "string" },
-													"has_child_challenge": { "type": "boolean" }
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													},
+													"title": {
+														"type": "string"
+													},
+													"status": {
+														"type": "string"
+													},
+													"end_reason": {
+														"type": "string",
+														"nullable": true
+													},
+													"start_at": {
+														"type": "string",
+														"format": "date-time"
+													},
+													"ended_at": {
+														"type": "string",
+														"format": "date-time",
+														"nullable": true
+													},
+													"current_step": {
+														"type": "integer"
+													},
+													"duration_days": {
+														"type": "integer"
+													},
+													"hearts_left": {
+														"type": "integer"
+													},
+													"member_count": {
+														"type": "integer"
+													},
+													"creator_username": {
+														"type": "string"
+													},
+													"has_child_challenge": {
+														"type": "boolean"
+													}
 												}
 											}
 										},
-										"total": { "type": "integer" },
-										"page": { "type": "integer" },
-										"limit": { "type": "integer" }
+										"total": {
+											"type": "integer"
+										},
+										"page": {
+											"type": "integer"
+										},
+										"limit": {
+											"type": "integer"
+										}
 									}
 								}
 							}
 						}
 					},
-					"400": { "description": "Missing user_id" }
+					"400": {
+						"description": "Missing user_id"
+					}
 				}
 			}
 		},
@@ -3421,7 +3521,9 @@
 							}
 						}
 					},
-					"400": { "description": "Missing user_id" }
+					"400": {
+						"description": "Missing user_id"
+					}
 				}
 			}
 		}

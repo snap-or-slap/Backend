@@ -21,7 +21,7 @@ const shouldUseSsl = !isLocalConnection && !isInternalConnection;
 
 const pool = new Pool({
 	connectionString: databaseUrl,
-	ssl: shouldUseSsl ? { rejectUnauthorized: false } : false,
+	ssl: shouldUseSsl,
 });
 
 async function seed() {
