@@ -1,14 +1,14 @@
 # Snap Or Slap Backend
 
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=snap-or-slap_Backend&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=snap-or-slap_Backend)
+<!-- [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=snap-or-slap_Backend&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=snap-or-slap_Backend) -->
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=snap-or-slap_Backend&metric=coverage)](https://sonarcloud.io/summary/new_code?id=snap-or-slap_Backend)
-[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=snap-or-slap_Backend&metric=bugs)](https://sonarcloud.io/summary/new_code?id=snap-or-slap_Backend)
+<!-- [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=snap-or-slap_Backend&metric=bugs)](https://sonarcloud.io/summary/new_code?id=snap-or-slap_Backend) -->
 [![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=snap-or-slap_Backend&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=snap-or-slap_Backend)
 [![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=snap-or-slap_Backend&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=snap-or-slap_Backend)
 [![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=snap-or-slap_Backend&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=snap-or-slap_Backend)
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=snap-or-slap_Backend&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=snap-or-slap_Backend)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=snap-or-slap_Backend&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=snap-or-slap_Backend)
-[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=snap-or-slap_Backend&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=snap-or-slap_Backend)
+<!-- [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=snap-or-slap_Backend&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=snap-or-slap_Backend) -->
 
 Next.js backend API for Snap Or Slap.
 
