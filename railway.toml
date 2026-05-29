@@ -3,7 +3,7 @@ builder = "nixpacks"
 buildCommand = "NODE_ENV=production npm run build"
 
 [deploy]
-startCommand = "NODE_ENV=production npm run db:migrate && NODE_ENV=production HOSTNAME=0.0.0.0 node .next/standalone/server.js"
+startCommand = "NODE_ENV=production HOSTNAME=0.0.0.0 node .next/standalone/server.js"
 healthcheckPath = "/api/health"
-healthcheckTimeout = 30
+healthcheckTimeout = 60
 restartPolicyType = "on_failure"

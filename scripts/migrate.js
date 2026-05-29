@@ -1,6 +1,9 @@
 const fs = require('fs');
 const path = require('path');
+const { loadEnvConfig } = require('@next/env');
 const { Pool } = require('pg');
+
+loadEnvConfig(process.cwd());
 
 async function migrate() {
   const databaseUrl = process.env.DIRECT_URL || process.env.DATABASE_URL;
