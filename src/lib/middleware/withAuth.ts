@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
+import { verifyAccessToken } from '@/lib/auth/tokens';
 
 export interface AuthUser {
 	userId: string;
@@ -20,15 +21,11 @@ export function withAuth(handler: AuthHandler) {
 		}
 
 		const token = authHeader.slice(7);
-		const secret = process.env.JWT_ACCESS_SECRET;
-		if (!secret) {
-			return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-		}
 
 		try {
-			const payload = jwt.verify(token, secret) as jwt.JwtPayload & AuthUser;
+			const payload = verifyAccessToken(token);
 			const user: AuthUser = {
-				userId: payload.userId,
+				userId: String(payload.userId),
 				email: payload.email,
 			};
 			return handler(req, user, ...args);

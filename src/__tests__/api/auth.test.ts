@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach } from '@jest/globals';
 
 beforeAll(() => {
 	process.env.DATABASE_URL = 'postgresql://user:pass@localhost:5432/db';
-	process.env.JWT_ACCESS_SECRET = 'test-access-secret';
+	process.env.JWT_ACCESS_SECRET = 'test-access-secret-for-jwt-needs-to-be-32-chars';
 	process.env.JWT_REFRESH_SECRET = 'test-refresh-secret';
 	process.env.CRON_SECRET = 'test-cron-secret';
 	process.env.APP_BASE_URL = 'http://localhost:3000';

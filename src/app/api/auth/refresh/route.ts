@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import jwt from 'jsonwebtoken';
 import { query } from '@/lib/db';
 import { refreshSchema } from '@/lib/schemas/auth';
+import { signAccessToken } from '@/lib/auth/tokens';
 
 export async function POST(req: NextRequest) {
 	let body: unknown;
@@ -60,11 +60,10 @@ export async function POST(req: NextRequest) {
 	const user = users[0];
 
 	// Generate new tokens
-	const accessToken = jwt.sign(
-		{ userId: user.id, email: user.email },
-		process.env.JWT_ACCESS_SECRET!,
-		{ expiresIn: '15m' }
-	);
+	const accessToken = signAccessToken({
+		userId: user.id,
+		email: user.email,
+	});
 
 	const newRefreshToken = crypto.randomBytes(40).toString('hex');
 	const newTokenHash = crypto.createHash('sha256').update(newRefreshToken).digest('hex');

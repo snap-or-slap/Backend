@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { query } from '@/lib/db';
 import { loginSchema } from '@/lib/schemas/auth';
+import { signAccessToken } from '@/lib/auth/tokens';
+
+const DUMMY_PASSWORD_HASH =
+  '$2b$12$KIXQ4H8cAF5VfR6oHbykvuSn7Tf39W8LLp7QoxWz.8AO5gZiLxqKq';
 
 export async function POST(req: NextRequest) {
   let body: unknown;
@@ -32,7 +35,7 @@ export async function POST(req: NextRequest) {
 
   if (rows.length === 0) {
     // Constant-time: still run bcrypt compare to prevent timing attacks
-    await bcrypt.compare(password, '$2b$12$invalid.hash.placeholder.for.timing.attack.prevention');
+    await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
     return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
   }
 
@@ -47,11 +50,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Account disabled' }, { status: 403 });
   }
 
-  const accessToken = jwt.sign(
-    { userId: user.id, email: user.email },
-    process.env.JWT_ACCESS_SECRET!,
-    { expiresIn: '15m' }
-  );
+  const accessToken = signAccessToken({
+    userId: user.id,
+    email: user.email,
+  });
 
   const refreshToken = crypto.randomBytes(40).toString('hex');
   const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');

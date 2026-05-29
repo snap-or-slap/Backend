@@ -43,7 +43,12 @@ describe('withAuth middleware', () => {
 		const expiredToken = jwt.sign(
 			{ userId: '123', email: 'test@test.com' },
 			'test-access-secret-for-middleware',
-			{ expiresIn: '-1s' }
+			{ 
+				expiresIn: '-1s',
+				algorithm: 'HS256',
+				issuer: 'snap-or-slap-backend',
+				audience: 'snap-or-slap-mobile'
+			}
 		);
 		const req = makeRequest(expiredToken);
 		const res = await wrapped(req);
@@ -64,7 +69,12 @@ describe('withAuth middleware', () => {
 		const validToken = jwt.sign(
 			{ userId: 'user-123', email: 'test@test.com' },
 			'test-access-secret-for-middleware',
-			{ expiresIn: '15m' }
+			{ 
+				expiresIn: '15m',
+				algorithm: 'HS256',
+				issuer: 'snap-or-slap-backend',
+				audience: 'snap-or-slap-mobile'
+			}
 		);
 		const req = makeRequest(validToken);
 		await wrapped(req);
