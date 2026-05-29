@@ -51,21 +51,17 @@ const config: Config = {
 
     // Next.js UI/pages are not backend API coverage target
     '!src/app/**/*.tsx',
-    '!src/pages/**',
     '!src/app/layout.tsx',
     '!src/app/page.tsx',
     '!src/app/not-found.tsx',
 
-    // Static/generated/API docs
-    '!src/app/api/docs/openapi.json',
+    // Static/generated/API docs and local-only diagnostics
+    '!src/app/api/docs/**',
+    '!src/app/api/test-data/**',
 
     // DB scripts/migrations are better tested separately if needed
     '!src/lib/db/migrate.ts',
     '!src/lib/db/seed.ts',
-
-    // Optional: exclude placeholder/legacy route if not part of submitted scope
-    '!src/app/api/teams/[id]/slap/route.ts',
-    '!src/app/api/challenges/[id]/proof/route.ts',
   ],
 
   coverageThreshold: {

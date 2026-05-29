@@ -7,7 +7,7 @@
 	},
 	"servers": [
 		{
-			"url": "https://backend-production-2ba1.up.railway.app",
+			"url": "https://backend-production-2dda7.up.railway.app",
 			"description": "Railway Production"
 		},
 		{

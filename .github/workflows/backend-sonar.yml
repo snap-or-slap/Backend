@@ -32,7 +32,7 @@ jobs:
         run: npm run typecheck
 
       - name: Run backend tests with coverage
-        run: npm run test:coverage
+        run: npm run test:coverage:ci
 
       - name: Verify coverage report exists
         run: test -f coverage/lcov.info
