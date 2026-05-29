@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build && npm run copy-standalone-assets",
-    "copy-standalone-assets": "mkdir -p .next/standalone/.next && cp -r .next/static .next/standalone/.next/static && cp -r public .next/standalone/public",
+    "copy-standalone-assets": "mkdir -p .next/standalone/.next && cp -r .next/static .next/standalone/.next/static && if [ -d public ]; then cp -r public .next/standalone/public; fi",
     "start": "HOSTNAME=0.0.0.0 node .next/standalone/server.js",
 
     "lint": "next lint",
