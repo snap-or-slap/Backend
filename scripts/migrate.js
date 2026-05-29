@@ -14,15 +14,28 @@ async function migrate() {
   }
 
   const isInternalConnection = databaseUrl.includes('.railway.internal');
+
   const isLocalConnection =
     databaseUrl.includes('localhost') ||
     databaseUrl.includes('127.0.0.1') ||
     databaseUrl.includes('host.docker.internal');
-  const shouldUseSsl = !isLocalConnection && !isInternalConnection;
+
+  const shouldUseSsl =
+    process.env.DATABASE_SSL === 'true' ||
+    (!isLocalConnection &&
+      !isInternalConnection &&
+      process.env.NODE_ENV === 'production');
+
+  const rejectUnauthorized =
+    process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false';
 
   const pool = new Pool({
     connectionString: databaseUrl,
-    ssl: shouldUseSsl,
+    ssl: shouldUseSsl
+      ? {
+        rejectUnauthorized,
+      }
+      : false,
   });
 
   try {
