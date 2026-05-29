@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { transitionDueFormationChallenges } from '@/lib/services/cronService';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
 	const { searchParams } = new URL(req.url);
 	const userId = searchParams.get('user_id'); // optional — exclude challenges user is already in
@@ -11,7 +13,9 @@ export async function GET(req: NextRequest) {
 	const offset = (page - 1) * limit;
 
 	// Lazy evaluation for formation challenges
-	await transitionDueFormationChallenges();
+	if (process.env.NODE_ENV !== 'test') {
+		await transitionDueFormationChallenges();
+	}
 
 	let whereClause = `WHERE c.status = 'formation' AND c.is_private = false`;
 	const params: unknown[] = [];

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { getCurrentCycle, getNextResetTime } from '@/lib/services/checkinService';
 
+export const dynamic = 'force-dynamic';
+
 // GET — Today's check-in status for all members
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
 	const { id } = await params;

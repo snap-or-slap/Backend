@@ -8,6 +8,7 @@ import {
 } from '@/lib/services/proofUploadService';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 function getCaptionFromFormData(value: FormDataEntryValue | null): string | null {
 	if (typeof value !== 'string') {

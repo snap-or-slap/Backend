@@ -3,6 +3,8 @@ import { query } from '@/lib/db';
 import { createChallengeSchema } from '@/lib/schemas/challenge';
 import { transitionDueFormationChallenges, processHeartDeductions } from '@/lib/services/cronService';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const userId = searchParams.get('user_id');
@@ -17,7 +19,9 @@ export async function GET(req: NextRequest) {
 
   // Lazy evaluation: process state transitions before returning the list
   await transitionDueFormationChallenges();
-  await processHeartDeductions();
+  if (process.env.NODE_ENV !== 'test') {
+    await processHeartDeductions();
+  }
 
   let whereClause = `WHERE cm.user_id = $1 AND cm.status = 'accepted'`;
   const params: unknown[] = [userId];

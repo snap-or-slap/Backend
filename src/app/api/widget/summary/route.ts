@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { transitionDueFormationChallenges } from '@/lib/services/cronService';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
 	const { searchParams } = new URL(req.url);
 	const userId = searchParams.get('user_id');

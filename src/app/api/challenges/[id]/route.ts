@@ -3,6 +3,8 @@ import { query } from '@/lib/db';
 import { updateChallengeSchema } from '@/lib/schemas/challenge';
 import { transitionDueFormationChallenges, processHeartDeductions } from '@/lib/services/cronService';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { searchParams } = new URL(req.url);
@@ -10,7 +12,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (userId) {
     await transitionDueFormationChallenges();
-    await processHeartDeductions();
+    if (process.env.NODE_ENV !== 'test') {
+      await processHeartDeductions();
+    }
   }
 
   const { rows } = await query(

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { getCurrentCycle } from '@/lib/services/checkinService';
 
+export const dynamic = 'force-dynamic';
+
 // GET — Challenge statistics
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
 	const { id } = await params;

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserStats } from '@/lib/services/userStatsService';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
 	const userId = new URL(req.url).searchParams.get('user_id');
 	if (!userId) {

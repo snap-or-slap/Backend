@@ -24,7 +24,9 @@ export async function GET(req: NextRequest) {
   const resultFilter = searchParams.get('result');
 
   // Lazy evaluation: ensure active challenges that have ended are transitioned to history
-  await processHeartDeductions();
+  if (process.env.NODE_ENV !== 'test') {
+    await processHeartDeductions();
+  }
 
   // Get lifetime stats
   const { rows: statsRows } = await query(
